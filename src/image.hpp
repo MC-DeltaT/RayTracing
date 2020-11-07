@@ -14,4 +14,4 @@ struct Pixel {
 };
 
 
-void linearTo8BitSRGB(Span<glm::vec3> linear, Span<Pixel> srgb);
+void linearTo8BitSRGB(Span<glm::vec3 const> linear, Span<Pixel> srgb);

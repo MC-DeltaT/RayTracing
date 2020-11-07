@@ -5,35 +5,32 @@
 #include "mesh.hpp"
 #include "span.hpp"
 
-#include <vector>
+#include <cstddef>
 
 #include <glm/mat3x3.hpp>
 #include <glm/vec3.hpp>
 
 
-struct MeshData {
-    Span<std::vector<Vertex> const> verticesWorld;
-    Span<std::vector<MeshTri> const> tris;
-    Span<MeshInstance const> instances;
-};
-
-
-struct Lights {
-    Span<PointLight const> point;
-    Span<DirectionalLight const> directional;
-    Span<SpotLight const> spot;
-};
-
-
 struct RenderData {
     unsigned imageWidth;
     unsigned imageHeight;
-    glm::mat3 pixelToRayTransform;
     glm::vec3 cameraPosition;
-    Lights lights;
-    MeshData meshData;
-    Span<Material const> materials;
+    glm::mat3 pixelToRayTransform;
     unsigned maxRayDepth;
+    struct Models {
+        struct Meshes {
+            Span<Vertex const> vertices;
+            Span<MeshTri const> tris;
+            Span<Mesh const> meshes;
+        } meshes;
+        Span<std::size_t const> materials;
+    } models;
+    struct Lights {
+        Span<PointLight const> point;
+        Span<DirectionalLight const> directional;
+        Span<SpotLight const> spot;
+    } lights;
+    Span<Material const> materials;
 };
 
 

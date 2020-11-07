@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <execution>
 
 
 static std::uint8_t linearTo8BitSRGB(float linear) {
@@ -22,9 +23,9 @@ static Pixel linearTo8BitSRGB(glm::vec3 linear) {
 }
 
 
-void linearTo8BitSRGB(Span<glm::vec3> linear, Span<Pixel> srgb) {
+void linearTo8BitSRGB(Span<glm::vec3 const> linear, Span<Pixel> srgb) {
     assert(linear.size() == srgb.size());
-    std::transform(linear.begin(), linear.end(), srgb.begin(), [](auto value) {
+    std::transform(std::execution::par_unseq, linear.begin(), linear.end(), srgb.begin(), [](auto value) {
         return linearTo8BitSRGB(value);
     });
 }

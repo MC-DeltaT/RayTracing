@@ -1,6 +1,8 @@
 #pragma once
 
-#include <array>
+#include "span.hpp"
+
+#include <cstddef>
 #include <vector>
 
 #include <glm/gtc/quaternion.hpp>
@@ -25,8 +27,10 @@ struct MeshTri {
 
 
 struct Mesh {
-    std::vector<Vertex> vertices;
-    std::vector<MeshTri> tris;
+    std::size_t verticesOffset;
+    std::size_t vertexCount;
+    std::size_t trisOffset;
+    std::size_t triCount;
 };
 
 
@@ -39,11 +43,13 @@ struct MeshTransform {
 };
 
 
-struct MeshInstance {
-    std::size_t mesh;
-    std::size_t material;
-    MeshTransform transform;
+struct InstantiatedMeshes {
+    std::vector<Vertex> vertices;
+    std::vector<Mesh> meshes;
 };
 
 
 glm::mat3 normalTransform(glm::mat4 modelTransform);
+
+void instantiateMeshes(Span<Vertex const> vertices, Span<Mesh const> meshes,
+    Span<MeshTransform const> instanceTransforms, Span<std::size_t const> instanceMeshes, InstantiatedMeshes& result);

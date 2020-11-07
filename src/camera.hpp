@@ -15,4 +15,4 @@ struct Camera {
 };
 
 
-glm::mat3 pixelToRayTransform(glm::vec3 look, glm::vec3 up, float fov, unsigned imageWidth, unsigned imageHeight);
+glm::mat3 pixelToRayTransform(glm::vec3 forward, glm::vec3 up, float fov, unsigned imageWidth, unsigned imageHeight);

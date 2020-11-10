@@ -12,7 +12,7 @@
 #include <glm/vec3.hpp>
 
 
-struct Vertex {
+struct Vertex {     // TODO: separate attributes
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec2 textureCoords;

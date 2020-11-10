@@ -7,8 +7,10 @@
 #include "scene.hpp"
 #include "span.hpp"
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <utility>
 #include <vector>
 
@@ -82,16 +84,15 @@ std::pair<std::vector<Vertex>, std::vector<MeshTri>> rect() {
 
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 7680;
-    constexpr unsigned IMAGE_HEIGHT = 4320;
-    constexpr unsigned RAY_TRACE_DEPTH = 5;
+    constexpr unsigned IMAGE_WIDTH = 1920;
+    constexpr unsigned IMAGE_HEIGHT = 1080;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<Pixel> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
     Scene scene{
         {   // Camera
-            {0.0f, 0.0f, 10.0f},
+            {0.0f, 0.0f, 0.0f},
             glm::angleAxis(glm::pi<float>(), glm::vec3{0.0f, 1.0f, 0.0f}),
             glm::radians(45.0f)
         },
@@ -108,52 +109,40 @@ int main() {
             cube(), rect()
         },
         {   // Materials
-            {{0.5f, 0.0f, 1.0f}, 1.0f, 0.25f, 0.2f, 16.0f},
-            {{0.0f, 0.5f, 1.0f}, 1.0f, 0.25f, 0.2f, 16.0f},
-            {{0.5f, 1.0f, 0.0f}, 1.0f, 0.25f, 0.2f, 16.0f},
+            {{0.5f, 0.0f, 1.0f}, 1.0f, 0.25f, 0.2f, 8.0f},
+            {{0.0f, 0.5f, 1.0f}, 1.0f, 0.25f, 0.2f, 8.0f},
+            {{0.5f, 1.0f, 0.0f}, 1.0f, 0.25f, 0.2f, 8.0f},
             {{1.0f, 1.0f, 1.0f}, 0.0f, 1.0f, 1.0f, 128.0f}
         },
-        {   // Models
-            {   // Mesh transforms
-                {
-                    {1.0f, 0.0f, 5.0f},
-                    glm::angleAxis(glm::pi<float>() / 2.0f, glm::normalize(glm::vec3{1.0f, 1.0f, 1.0f}))
-                },
-                {
-                    {-1.0f, 0.0f, 5.0f},
-                    glm::angleAxis(-glm::pi<float>() / 4.0f, glm::normalize(glm::vec3{1.0f, 1.0f, 1.0f})),
-                    {0.5f, 0.5f, 0.5f}
-                },
-                {
-                    {-0.5f, 1.0f, 5.0f},
-                    glm::angleAxis(glm::pi<float>() / 4.0f, glm::normalize(glm::vec3{1.0f, 1.0f, 1.0f})),
-                    {0.75f, 0.75f, 0.75f}
-                },
-                {
-                    {0.0f, 0.0f, 0.0f},
-                    {1.0f, 0.0f, 0.0f, 0.0f},
-                    {3.0f, 3.0f, 1.0f}
-                }
-            },
-            {   // Mesh indices
-                0, 0, 0, 1
-            },
-            {   // Material indices
-                0, 1, 2, 3
-            },
-        },
+        {}, // Models
         {}  // Instantiated meshes
     };
+
+    {
+        std::default_random_engine randEng{13};
+        std::uniform_real_distribution<float> dist1{-1.0f, 1.0f};
+        std::uniform_real_distribution<float> dist2{0.25f, 1.0f};
+        for (unsigned i = 0; i < 300; ++i) {
+            auto const mesh = randEng() % scene.meshes.meshes.size();
+            auto const material = randEng() % scene.materials.size();
+            glm::vec3 const position{dist1(randEng) * 10.0f, dist1(randEng) * 3.0f, dist1(randEng) * 10.0f};
+            glm::quat const orientation{glm::vec3{dist1(randEng), 0.0f, dist1(randEng)}};
+            glm::vec3 const scale{dist2(randEng), dist2(randEng), dist2(randEng)};
+            scene.models.meshTransforms.push_back({position, orientation, scale});
+            scene.models.meshes.push_back(mesh);
+            scene.models.materials.push_back(material);
+        }
+    }
 
     instantiateMeshes(Span{scene.meshes.vertices}, Span{scene.meshes.meshes}, Span{scene.models.meshTransforms},
         Span{scene.models.meshes}, scene.instantiatedMeshes);
 
-    auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.up(), scene.camera.fov,
-        IMAGE_WIDTH, IMAGE_HEIGHT);
+    auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.up(),
+        scene.camera.fov, IMAGE_WIDTH, IMAGE_HEIGHT);
 
     RenderData const renderData{
         IMAGE_WIDTH, IMAGE_HEIGHT,
-        scene.camera.position, pixelToRayTransform, RAY_TRACE_DEPTH,
+        scene.camera.position, pixelToRayTransform,
         {
             {Span{scene.instantiatedMeshes.vertices}, Span{scene.meshes.tris}, Span{scene.instantiatedMeshes.meshes}},
             Span{scene.models.materials}
@@ -161,9 +150,13 @@ int main() {
         {Span{scene.lights.point}, Span{scene.lights.directional}, Span{scene.lights.spot}},
         Span{scene.materials}
     };
+    auto const t1 = std::chrono::high_resolution_clock::now();
     render(renderData, Span{renderBuffer});
+    auto const t2 = std::chrono::high_resolution_clock::now();
 
-    std::cout << "Render done" << std::endl;
+    auto const time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+    auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
+    std::cout << "Render done in " << time.count() << "us (" << timePerPixel << " us per pixel)" << std::endl;
 
     linearTo8BitSRGB(Span{renderBuffer}, Span{imageBuffer});
 

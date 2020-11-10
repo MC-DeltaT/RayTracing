@@ -11,18 +11,26 @@ set(SOURCE_FILES
     image.cpp
     main.cpp
     mesh.cpp
-    ray.cpp
     render.cpp
     scene.cpp
 )
 list(TRANSFORM SOURCE_FILES PREPEND src/)
 
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MP /Ob2 /Oi /Ot /Oy /GT /GL /DNDEBUG /arch:AVX2 /fp:fast")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MP /Ob2 /Oi /Ot /Oy /GT /GL /DNDEBUG /arch:AVX2 /fp:fast")
+    set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} /LTCG")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mavx2")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -mavx2")
+endif()
+
+
 # Main executable
 
 add_executable("${EXECUTABLE_NAME}" ${SOURCE_FILES})
-
-target_link_libraries("${EXECUTABLE_NAME}" glm boost)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 target_compile_features("${EXECUTABLE_NAME}" PUBLIC cxx_std_17)
@@ -35,8 +43,17 @@ set_target_properties("${EXECUTABLE_NAME}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY_R
 # GLM
 
 add_subdirectory("${LIBRARY_DIRECTORY}/glm")
+target_link_libraries("${EXECUTABLE_NAME}" glm)
 
 
 # Boost
 
 add_subdirectory("${LIBRARY_DIRECTORY}/boost")
+target_link_libraries("${EXECUTABLE_NAME}" boost)
+
+
+# Linux TBB (for std::execution)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_libraries("${EXECUTABLE_NAME}" tbb)
+endif()

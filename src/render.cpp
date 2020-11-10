@@ -14,6 +14,9 @@
 #include <glm/vec3.hpp>
 
 
+constexpr unsigned RAY_BOUNCE_LIMIT = 4;
+
+
 struct RayMeshIntersection {
     RayIntersection intersection;
     std::size_t mesh;
@@ -71,9 +74,10 @@ static bool intersectsAny(RenderData::Models::Meshes const& meshes, Ray ray, flo
 }
 
 static glm::vec3 rayTrace(RenderData::Models const& models, Span<Material const> materials,
-        RenderData::Lights const& lights, Ray ray, unsigned maxDepth, unsigned depth) {
+        RenderData::Lights const& lights, Ray ray) {
     glm::vec3 colour{0.0f, 0.0f, 0.0f};
-    if (depth < maxDepth) {
+    glm::vec3 coeff{1.0f, 1.0f, 1.0f};
+    for (unsigned bounce = 0; bounce <= RAY_BOUNCE_LIMIT; ++bounce) {
         auto const intersection = nearestIntersection(models.meshes, ray);
         if (intersection) {
             auto const& mesh = models.meshes.meshes[intersection->mesh];
@@ -83,11 +87,14 @@ static glm::vec3 rayTrace(RenderData::Models const& models, Span<Material const>
             auto const& v1 = vertices[tri.i1];
             auto const& v2 = vertices[tri.i2];
             auto const& v3 = vertices[tri.i3];
-            auto const pointCoords = intersection->intersection.pointCoords;
-            auto const normal = v1.normal * pointCoords.x + v2.normal * pointCoords.y + v3.normal * pointCoords.z;
+            auto const pointCoord2 = intersection->intersection.pointCoord2;
+            auto const pointCoord3 = intersection->intersection.pointCoord3;
+            auto const pointCoord1 = 1.0f - pointCoord2 - pointCoord3;
+            auto const normal = v1.normal * pointCoord1 + v2.normal * pointCoord2 + v3.normal * pointCoord3;
             auto const& material = materials[models.materials[intersection->mesh]];
             auto const intersectPos = ray.origin + intersection->intersection.rayParam * ray.direction;
 
+            glm::vec3 localColour{0.0f, 0.0f, 0.0f};
             for (auto const& light : lights.point) {
                 auto const pointToLight = light.position - intersectPos;
                 auto const lightDistance = glm::length(pointToLight);
@@ -96,26 +103,29 @@ static glm::vec3 rayTrace(RenderData::Models const& models, Span<Material const>
                 auto const diffuseColour = material.diffuse * rawColour;
 
                 auto const ambient = light.ambientStrength * diffuseColour;
-                colour += ambient;
+                localColour += ambient;
 
                 Ray const shadowRay{intersectPos, pointToLight};
                 if (!intersectsAny(models.meshes, shadowRay, 1.0f)) {
                     auto const lightRay = -pointToLight / lightDistance;
                     auto const diffuseCoeff = std::max(glm::dot(normal, -lightRay), 0.0f);
                     auto const diffuse = diffuseCoeff * diffuseColour;
-                    colour += diffuse;
+                    localColour += diffuse;
 
                     auto const pointToViewer = glm::normalize(ray.origin - intersectPos);
                     auto const reflectedRay = glm::reflect(lightRay, normal);
                     auto const specularCoeff = std::pow(std::max(glm::dot(pointToViewer, reflectedRay), 0.0f), material.shininess);
                     auto const specular = specularCoeff * material.specular * rawColour;
-                    colour += specular;
+                    localColour += specular;
                 }
             }
 
-            Ray const reflectedRay{intersectPos, glm::reflect(ray.direction, normal)};
-            auto const reflection = rayTrace(models, materials, lights, reflectedRay, maxDepth, depth + 1);
-            colour += material.reflectivity * material.colour * reflection;
+            colour += coeff * localColour;
+            coeff *= material.colour * material.reflectivity;
+            ray = {intersectPos, glm::reflect(ray.direction, normal)};
+        }
+        else {
+            break;
         }
     }
     return colour;
@@ -131,7 +141,7 @@ void render(RenderData const& data, Span<glm::vec3> image) {
         auto const imageY = index / data.imageWidth;
         auto const rayDirection = data.pixelToRayTransform * glm::vec3{imageX, imageY, 1.0f};
         Ray const ray{data.cameraPosition, rayDirection};
-        auto const colour = rayTrace(data.models, data.materials, data.lights, ray, data.maxRayDepth, 0);
+        auto const colour = rayTrace(data.models, data.materials, data.lights, ray);
         return colour;
     });
 }

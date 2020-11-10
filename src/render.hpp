@@ -16,7 +16,6 @@ struct RenderData {
     unsigned imageHeight;
     glm::vec3 cameraPosition;
     glm::mat3 pixelToRayTransform;
-    unsigned maxRayDepth;
     struct Models {
         struct Meshes {
             Span<Vertex const> vertices;

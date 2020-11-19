@@ -4,41 +4,46 @@
 #include "light.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
+#include "ray.hpp"
+#include "utility.hpp"
 
 #include <cstddef>
 #include <initializer_list>
-#include <utility>
+#include <tuple>
 #include <vector>
+
+#include <glm/vec3.hpp>
 
 
 struct Meshes {
-    std::vector<Vertex> vertices;
+    std::vector<glm::vec3> vertexPositions;
+    std::vector<glm::vec3> vertexNormals;
     std::vector<MeshTri> tris;
-    std::vector<Mesh> meshes;
+    std::vector<IndexRange> vertexRanges;
+    std::vector<IndexRange> triRanges;
 
-    Meshes(std::initializer_list<std::pair<std::vector<Vertex>, std::vector<MeshTri>>> meshes);
-};
-
-
-struct Models {
-    std::vector<MeshTransform> meshTransforms;
-    std::vector<std::size_t> meshes;
-    std::vector<std::size_t> materials;
-};
-
-
-struct Lights {
-    std::vector<PointLight> point;
-    std::vector<DirectionalLight> directional;
-    std::vector<SpotLight> spot;
+    Meshes(std::initializer_list<std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>,
+        std::vector<MeshTri>>> meshes);
+    
+    std::size_t meshCount() const;
 };
 
 
 struct Scene {
     Camera camera;
-    Lights lights;
+    struct Lights {
+        std::vector<PointLight> point;
+        std::vector<DirectionalLight> directional;
+        std::vector<SpotLight> spot;
+    } lights;
     Meshes meshes;
     std::vector<Material> materials;
-    Models models;
+    struct Models {
+        std::vector<MeshTransform> meshTransforms;
+        std::vector<std::size_t> meshes;
+        std::vector<std::size_t> materials;
+    } models;
     InstantiatedMeshes instantiatedMeshes;
+    std::vector<PreprocessedTri> preprocessedTris;
+    std::vector<IndexRange> preprocessedTriRanges;
 };

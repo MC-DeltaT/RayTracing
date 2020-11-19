@@ -7,11 +7,7 @@ set(OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set(LIBRARY_DIRECTORY libraries)
 
 set(SOURCE_FILES
-    camera.cpp
-    image.cpp
     main.cpp
-    mesh.cpp
-    render.cpp
     scene.cpp
 )
 list(TRANSFORM SOURCE_FILES PREPEND src/)

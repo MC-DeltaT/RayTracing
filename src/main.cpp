@@ -131,7 +131,7 @@ int main() {
                 {{-6.0f, 2.0f, 6.5f}, {0.25f, 0.25f, 0.25f}}
             },
             {   // Directional
-                {glm::normalize(glm::vec3{0.5f, -4.0f, -1.0f}), {0.01f, 0.01f, 0.01f}}
+                {glm::normalize(glm::vec3{0.5f, -4.0f, -1.0f}), {0.02f, 0.02f, 0.02f}}
             }
         },
         {plane(), cube()},   // Meshes

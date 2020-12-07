@@ -263,25 +263,25 @@ private:
 
 class FastRNG {
 public:
-    FastRNG(unsigned long long state) :
+    FastRNG(std::uint64_t state) :
         _state{state}
     {}
 
-    std::uint16_t value() {
+    std::uint32_t value() {
         _state = (214013 * _state + 2531011); 
-        return (_state >> 16) & 0x7FFF;
+        return static_cast<std::uint32_t>(_state >> 16);
     }
 
     float unitFloat() {
-        return static_cast<float>(value()) / 0x7FFF;
+        return static_cast<float>(value()) / 0xFFFFFFFF;
     }
 
     float angle() {
-        return (glm::two_pi<float>() / 0x7FFF) * value();
+        return (glm::two_pi<float>() / 0xFFFFFFFF) * value();
     }
 
 private:
-    unsigned long long _state;
+    std::uint64_t _state;
 };
 
 

@@ -45,7 +45,7 @@ struct RenderData {
 constexpr inline static unsigned PIXEL_SAMPLE_RATE = 128;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
-constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 1;
+constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 4;
 
 
 inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bounce = 0) {
@@ -75,17 +75,18 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
 
     assert(isUnitVector(normal));
     assert(isUnitVector(outgoing));
-    auto const nDotO = std::clamp(glm::dot(normal, outgoing), 0.0f, 1.0f);
+    auto const nDotO = std::max(glm::dot(normal, outgoing), 0.0f);
     auto const specularNormFactor = 1.0f / (4.0f * nDotO);
 
     assert(material.roughness > 0.0f);
     auto const roughnessSq = square(material.roughness);
-    auto const geometryAlphaSq = roughnessSq;
     auto const ndfAlphaSq = roughnessSq;
+    auto const geometryAlphaSq = roughnessSq;
 
     assert(isNormalised(material.metalness));
     assert(isNormalised(material.colour.r) && isNormalised(material.colour.g) && isNormalised(material.colour.b));
     auto const f0 = glm::mix(glm::vec3{0.04f}, material.colour, material.metalness);
+    auto const oneMinusF0 = 1.0f - f0;
 
     auto const oneMinusMetalness = 1.0f - material.metalness;
     auto const colourOverPi = material.colour / glm::pi<float>();
@@ -116,14 +117,20 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
         return partial(nDotI, hDotI) * partial(nDotO, hDotO);
     };
 
-    auto const fresnel = [&f0](float hDotO) {
+    auto const fresnel = [&f0, &oneMinusF0](float hDotO) {
         // Fresnel-Schlick equation.
-        return f0 + (1.0f - f0) * iPow<5>(1.0f - hDotO);
+        return f0 + oneMinusF0 * iPow<5>(1.0f - hDotO);
     };
 
-    auto const brdf = [&ndf, &geometry, &fresnel, nDotO, specularNormFactor, oneMinusMetalness, &colourOverPi]
-            (float nDotI, float nDotH, float hDotI, float hDotO) {
+    auto const brdf = [&ndf, &geometry, &fresnel, &normal, nDotO, specularNormFactor, oneMinusMetalness, &colourOverPi]
+            (float nDotI, glm::vec3 const& incident, glm::vec3 const& outgoing) {
         // Cook-Torrance microfacet reflection model.
+        auto const halfway = glm::normalize(incident + outgoing);
+        auto const nDotH = std::max(glm::dot(normal, halfway), 0.0f);
+        // Angle between H and I or O must be < 90 degrees, so no need to clamp result.
+        auto const hDotI = glm::dot(halfway, incident);
+        auto const hDotO = glm::dot(halfway, outgoing);
+
         auto const specularD = ndf(nDotH);
         auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
         auto const specularF = fresnel(hDotO);
@@ -137,19 +144,16 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
 
     for (auto const& light : data.pointLights) {
         auto incident = light.position - point;
-        auto const distanceToLight = glm::length(incident);
-        incident /= distanceToLight;
-        auto const nDotI = std::clamp(glm::dot(incident, normal), 0.0f, 1.0f);
+        auto nDotI = glm::dot(incident, normal);
         if (nDotI > 0.0f) {
+            auto const distanceToLight = glm::length(incident);
+            incident /= distanceToLight;
+            nDotI /= distanceToLight;
             Ray const shadowRay{point, incident};
             auto const isBlocked = rayIntersectsAny<true>(data.preprocessedTris, data.preprocessedTriRanges, shadowRay, 
                 {RAY_INTERSECTION_MIN_PARAM, distanceToLight});
             if (!isBlocked) {
-                auto const halfway = glm::normalize(incident + outgoing);
-                auto const nDotH = std::clamp(glm::dot(normal, halfway), 0.0f, 1.0f);
-                auto const hDotO = std::clamp(glm::dot(halfway, outgoing), 0.0f, 1.0f);
-                auto const hDotI = std::clamp(glm::dot(halfway, incident), 0.0f, 1.0f);
-                auto const weight = brdf(nDotI, nDotH, hDotI, hDotO);
+                auto const weight = brdf(nDotI, incident, outgoing);
                 reflected += weight * light.colour;
             }
         }
@@ -157,33 +161,27 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
     
     for (auto const& light : data.directionalLights) {
         assert(isUnitVector(light.direction));
-        auto incident = -light.direction;
-        auto const nDotI = std::clamp(glm::dot(incident, normal), 0.0f, 1.0f);
-        if (nDotI > 0.0f) {
+        auto nDotI = glm::dot(light.direction, normal);
+        if (nDotI < 0.0f) {
+            auto const incident = -light.direction;
             Ray const shadowRay{point, incident};
             auto const isBlocked = rayIntersectsAny<true>(data.preprocessedTris, data.preprocessedTriRanges, shadowRay, 
                 {RAY_INTERSECTION_MIN_PARAM, INFINITY});
             if (!isBlocked) {
-                auto const halfway = glm::normalize(incident + outgoing);
-                auto const nDotH = std::clamp(glm::dot(normal, halfway), 0.0f, 1.0f);
-                auto const hDotO = std::clamp(glm::dot(halfway, outgoing), 0.0f, 1.0f);
-                auto const hDotI = std::clamp(glm::dot(halfway, incident), 0.0f, 1.0f);
-                auto const weight = brdf(nDotI, nDotH, hDotI, hDotO);
+                nDotI = -nDotI;
+                auto const weight = brdf(nDotI, incident, outgoing);
                 reflected += weight * light.colour;
             }
         }
     }
 
+    unsigned const bounceSamples = std::max<unsigned>(LIGHT_RECEIVE_SAMPLES >> bounce, 1);
     {
-        auto const receiveLight = [&data, &bounce, &point](glm::vec3 const& direction) {
-            return rayTrace(data, {point, direction}, bounce + 1);
-        };
-
         auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
         // TODO: importance sampling
 
-        for (unsigned i = 0; i < LIGHT_RECEIVE_SAMPLES; ++i) {
+        for (unsigned i = 0; i < bounceSamples; ++i) {
             auto const cosTheta = randomEngine.unitFloat();
             auto const sinTheta = std::sqrt(1.0f - square(cosTheta));
             auto const phi = randomEngine.angle();
@@ -192,20 +190,15 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
             
             auto const incident = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
 
-            auto const halfway = glm::normalize(incident + outgoing);
-            auto const nDotH = std::clamp(glm::dot(normal, halfway), 0.0f, 1.0f);
-            auto const hDotO = std::clamp(glm::dot(halfway, outgoing), 0.0f, 1.0f);
-            auto const hDotI = std::clamp(glm::dot(halfway, incident), 0.0f, 1.0f);
-
-            auto const weight = brdf(cosTheta, nDotH, hDotI, hDotO);
-            auto const incidentLight = receiveLight(incident);
+            auto const weight = brdf(cosTheta, incident, outgoing);
+            auto const incidentLight = rayTrace(data, {point, incident}, bounce + 1);
             reflected += weight * incidentLight;
         }
     }
 
     // TODO: light transmission
 
-    auto const receivedRays = LIGHT_RECEIVE_SAMPLES + data.pointLights.size() + data.directionalLights.size();
+    auto const receivedRays = bounceSamples + data.pointLights.size() + data.directionalLights.size();
     reflected *= glm::two_pi<float>() / receivedRays;
 
     auto const colour = material.emission + reflected;

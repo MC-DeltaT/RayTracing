@@ -42,7 +42,7 @@ struct RenderData {
 };
 
 
-constexpr inline static unsigned PIXEL_SAMPLE_RATE = 512;
+constexpr inline static unsigned PIXEL_SAMPLE_RATE = 256;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
 constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 1;

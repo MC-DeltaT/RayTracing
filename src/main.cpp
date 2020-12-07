@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <execution>
 #include <fstream>
 #include <iostream>
 #include <tuple>
@@ -113,10 +112,11 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 1000;
-    constexpr unsigned IMAGE_HEIGHT = 650;
+    constexpr unsigned IMAGE_WIDTH = 1920;
+    constexpr unsigned IMAGE_HEIGHT = 1080;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<Pixel> srgbBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<Pixel> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
     Scene scene{
@@ -133,7 +133,7 @@ int main() {
         },
         {plane(), cube()},   // Meshes
         {   // Materials
-            {{0.25f, 0.25f, 0.25f}, 0.2f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
+            {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
             {{1.0f, 0.0f, 1.0f}, 0.5f, 0.0f, {0.5f, 0.0f, 0.5f}},       // Yellow
             {{0.0f, 1.0f, 1.0f}, 0.5f, 0.0f, {0.0f, 0.5f, 0.5f}},       // Cyan
             {{1.0f, 1.0f, 0.0f}, 0.5f, 0.0f, {0.5f, 0.5f, 0.0f}},       // Magenta
@@ -190,8 +190,9 @@ int main() {
     render(renderData, Span{renderBuffer});
 
     auto const postprocessBeginTime = std::chrono::high_resolution_clock::now();
-    std::transform(std::execution::par_unseq, renderBuffer.cbegin(), renderBuffer.cend(), imageBuffer.begin(),
+    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), srgbBuffer.begin(),
         static_cast<Pixel(*)(glm::vec3)>(linearTo8BitSRGB));
+    medianFilter<1>(Span{srgbBuffer}, IMAGE_WIDTH, Span{imageBuffer});
 
     auto const endTime = std::chrono::high_resolution_clock::now();
 

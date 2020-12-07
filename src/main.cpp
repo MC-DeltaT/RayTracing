@@ -11,6 +11,7 @@
 #include <tuple>
 #include <vector>
 
+#include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/trigonometric.hpp>
@@ -127,9 +128,11 @@ int main() {
         },
         {   // Lights
             {   // Point
-                {{-6.0f, 2.0f, 6.5f}, {0.5f, 0.5f, 0.5f}}
+                {{-6.0f, 2.0f, 6.5f}, {0.25f, 0.25f, 0.25f}}
             },
-            {}, // Directional
+            {   // Directional
+                {glm::normalize(glm::vec3{0.5f, -4.0f, -1.0f}), {0.01f, 0.01f, 0.01f}}
+            }
         },
         {plane(), cube()},   // Meshes
         {   // Materials

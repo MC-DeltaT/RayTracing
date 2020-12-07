@@ -135,6 +135,45 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
 
     glm::vec3 reflected{0.0f, 0.0f, 0.0f};
 
+    for (auto const& light : data.pointLights) {
+        auto incident = light.position - point;
+        auto const distanceToLight = glm::length(incident);
+        incident /= distanceToLight;
+        auto const nDotI = std::clamp(glm::dot(incident, normal), 0.0f, 1.0f);
+        if (nDotI > 0.0f) {
+            Ray const shadowRay{point, incident};
+            auto const isBlocked = rayIntersectsAny<true>(data.preprocessedTris, data.preprocessedTriRanges, shadowRay, 
+                {RAY_INTERSECTION_MIN_PARAM, distanceToLight});
+            if (!isBlocked) {
+                auto const halfway = glm::normalize(incident + outgoing);
+                auto const nDotH = std::clamp(glm::dot(normal, halfway), 0.0f, 1.0f);
+                auto const hDotO = std::clamp(glm::dot(halfway, outgoing), 0.0f, 1.0f);
+                auto const hDotI = std::clamp(glm::dot(halfway, incident), 0.0f, 1.0f);
+                auto const weight = brdf(nDotI, nDotH, hDotI, hDotO);
+                reflected += weight * light.colour;
+            }
+        }
+    }
+    
+    for (auto const& light : data.directionalLights) {
+        assert(isUnitVector(light.direction));
+        auto incident = -light.direction;
+        auto const nDotI = std::clamp(glm::dot(incident, normal), 0.0f, 1.0f);
+        if (nDotI > 0.0f) {
+            Ray const shadowRay{point, incident};
+            auto const isBlocked = rayIntersectsAny<true>(data.preprocessedTris, data.preprocessedTriRanges, shadowRay, 
+                {RAY_INTERSECTION_MIN_PARAM, INFINITY});
+            if (!isBlocked) {
+                auto const halfway = glm::normalize(incident + outgoing);
+                auto const nDotH = std::clamp(glm::dot(normal, halfway), 0.0f, 1.0f);
+                auto const hDotO = std::clamp(glm::dot(halfway, outgoing), 0.0f, 1.0f);
+                auto const hDotI = std::clamp(glm::dot(halfway, incident), 0.0f, 1.0f);
+                auto const weight = brdf(nDotI, nDotH, hDotI, hDotO);
+                reflected += weight * light.colour;
+            }
+        }
+    }
+
     {
         auto const receiveLight = [&data, &bounce, &point](glm::vec3 const& direction) {
             return rayTrace(data, {point, direction}, bounce + 1);
@@ -168,28 +207,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
 
     // TODO: light transmission
 
-    for (auto const& light : data.pointLights) {
-        auto incident = light.position - point;
-        auto const distanceToLight = glm::length(incident);
-        incident /= distanceToLight;
-        auto const nDotI = std::clamp(glm::dot(incident, normal), 0.0f, 1.0f);
-        if (nDotI > 0.0f) {
-            Ray const shadowRay{point, incident};
-            auto const isBlocked = rayIntersectsAny<true>(data.preprocessedTris, data.preprocessedTriRanges, shadowRay, 
-                {RAY_INTERSECTION_MIN_PARAM, distanceToLight});
-            if (!isBlocked) {
-                auto const halfway = glm::normalize(incident + outgoing);
-                auto const nDotH = std::clamp(glm::dot(normal, halfway), 0.0f, 1.0f);
-                auto const hDotO = std::clamp(glm::dot(halfway, outgoing), 0.0f, 1.0f);
-                auto const hDotI = std::clamp(glm::dot(halfway, incident), 0.0f, 1.0f);
-                auto const weight = brdf(nDotI, nDotH, hDotI, hDotO);
-                reflected += weight * light.colour;
-            }
-        }
-    }
-    // TODO: other light types
-
-    auto const receivedRays = LIGHT_RECEIVE_SAMPLES + data.pointLights.size();
+    auto const receivedRays = LIGHT_RECEIVE_SAMPLES + data.pointLights.size() + data.directionalLights.size();
     reflected *= glm::two_pi<float>() / receivedRays;
 
     auto const colour = material.emission + reflected;

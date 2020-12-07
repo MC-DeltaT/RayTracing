@@ -7,7 +7,6 @@
 struct PointLight {
     glm::vec3 position;
     glm::vec3 colour;
-    float ambientStrength;
 };
 
 
@@ -16,16 +15,4 @@ struct PointLight {
 struct DirectionalLight {
     glm::vec3 direction;
     glm::vec3 colour;
-    float ambientStrength;
-};
-
-
-// Light that emanates from a single point in a cone shape (like a torch).
-// Default light direction is <0, 0, 1>.
-struct SpotLight {
-    glm::vec3 position;
-    glm::vec3 direction;
-    glm::vec3 colour;
-    float ambientStrength;
-    float cutoffAngle;      // Radians.
 };

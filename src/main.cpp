@@ -12,6 +12,7 @@
 #include <tuple>
 #include <vector>
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/trigonometric.hpp>
 #include <glm/vec3.hpp>
@@ -24,6 +25,25 @@ static std::vector<MeshTri> quadMeshTris(unsigned quadCount) {
         tris.push_back({4 * i + 1, 4 * i + 2, 4 * i + 3});
     }
     return tris;
+}
+
+
+std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> plane() {
+    return {
+        {
+            {-0.5f, 0.0f, -0.5f},   // Rear left
+            { 0.5f, 0.0f, -0.5f},   // Rear right
+            {-0.5f, 0.0f,  0.5f},   // Front left
+            { 0.5f, 0.0f,  0.5f},   // Front right
+        },
+        {
+            {0.0f, 1.0f, 0.0f},
+            {0.0f, 1.0f, 0.0f},
+            {0.0f, 1.0f, 0.0f},
+            {0.0f, 1.0f, 0.0f}
+        },
+        quadMeshTris(1)
+    };
 }
 
 
@@ -91,65 +111,47 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
     };
 }
 
-std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> rect() {
-    return {
-        {
-            {-0.5f, 0.0f, -0.5f},   // Rear left
-            { 0.5f, 0.0f, -0.5f},   // Rear right
-            {-0.5f, 0.0f,  0.5f},   // Front left
-            { 0.5f, 0.0f,  0.5f},   // Front right
-        },
-        {
-            {0.0f, 1.0f, 0.0f},
-            {0.0f, 1.0f, 0.0f},
-            {0.0f, 1.0f, 0.0f},
-            {0.0f, 1.0f, 0.0f}
-        },
-        quadMeshTris(1)
-    };
-}
-
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 1920;
-    constexpr unsigned IMAGE_HEIGHT = 1080;
+    constexpr unsigned IMAGE_WIDTH = 1000;
+    constexpr unsigned IMAGE_HEIGHT = 650;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<Pixel> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
     Scene scene{
         {   // Camera
-            {0.0f, 0.0f, 10.0f},
-            glm::angleAxis(glm::pi<float>(), glm::vec3{0.0f, 1.0f, 0.0f}),
+            {6.0f, 2.0f, 6.5f},
+            {glm::vec3{0.18f, -2.456, 0.0f}},
             glm::radians(45.0f)
         },
         {   // Lights
             {   // Point
-                {{-10.0f, 10.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 0.01f},
-                {{10.0f, 10.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0.01f},
-                {{0.0f, 10.0f, 10.0f}, {0.0f, 0.0f, 1.0f}, 0.01f}
+                {{-6.0f, 2.0f, 6.5f}, {0.5f, 0.5f, 0.5f}}
             },
             {}, // Directional
-            {}  // Spot
         },
-        {cube(), rect()},   // Meshes
+        {plane(), cube()},   // Meshes
         {   // Materials
-            {{0.5f, 0.0f, 1.0f}, 1.0f, 0.25f, 0.2f, 8.0f},
-            {{0.0f, 0.5f, 1.0f}, 1.0f, 0.25f, 0.2f, 8.0f},
-            {{0.5f, 1.0f, 0.0f}, 1.0f, 0.25f, 0.2f, 8.0f},
-            {{1.0f, 1.0f, 1.0f}, 0.0f, 1.0f, 1.0f, 128.0f}
+            {{0.25f, 0.25f, 0.25f}, 0.2f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
+            {{1.0f, 0.0f, 1.0f}, 0.5f, 0.0f, {0.5f, 0.0f, 0.5f}},       // Yellow
+            {{0.0f, 1.0f, 1.0f}, 0.5f, 0.0f, {0.0f, 0.5f, 0.5f}},       // Cyan
+            {{1.0f, 1.0f, 0.0f}, 0.5f, 0.0f, {0.5f, 0.5f, 0.0f}},       // Magenta
+            {{1.0f, 1.0f, 1.0f}, 0.005f, 1.0f, {0.0f, 0.0f, 0.0f}}      // Mirror
         },
         {   // Models
             {   // Mesh instance transforms
-                {{-3.0f, 0.0f, 0.0f}},
-                {{0.0f, 0.0f, 0.0f}, glm::angleAxis(glm::quarter_pi<float>(), glm::vec3{0.0f, 1.0f, 0.0f})},
-                {{3.0f, 0.0f, 0.0f}}
+                {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {100.0f, 1.0f, 100.0f}},
+                {{-3.0f, 0.5f, 0.0f}},
+                {{0.0f, 0.5f, 0.0f}},
+                {{3.0f, 0.5f, 0.0f}},
+                {{0.0f, 2.5f, -5.0f}, {glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}}, {10.0f, 1.0f, 5.0f}},
             },
             {   // Model mesh indices
-                0, 0, 0
+                0, 1, 1, 1, 0
             },
             {   // Model material indices
-                2, 1, 0
+                0, 1, 2, 3, 4
             }
         },
         {}, // Instantiated meshes
@@ -167,8 +169,8 @@ int main() {
         PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
         scene.preprocessedTris, scene.preprocessedTriRanges);
 
-    auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.up(), scene.camera.fov,
-        IMAGE_WIDTH, IMAGE_HEIGHT);
+    auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.down(),
+        scene.camera.right(), scene.camera.fov, IMAGE_WIDTH, IMAGE_HEIGHT);
 
     RenderData const renderData{
         IMAGE_WIDTH, IMAGE_HEIGHT,
@@ -180,7 +182,7 @@ int main() {
             PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
             readOnlySpan(scene.preprocessedTriRanges),
             PermutedSpan{readOnlySpan(scene.materials), readOnlySpan(scene.models.materials)},
-            readOnlySpan(scene.lights.point), readOnlySpan(scene.lights.directional), readOnlySpan(scene.lights.spot)
+            readOnlySpan(scene.lights.point), readOnlySpan(scene.lights.directional)
         }
     };
 
@@ -189,35 +191,33 @@ int main() {
 
     auto const postprocessBeginTime = std::chrono::high_resolution_clock::now();
     std::transform(std::execution::par_unseq, renderBuffer.cbegin(), renderBuffer.cend(), imageBuffer.begin(),
-        [](auto& value) {
-            return linearTo8BitSRGB(value);
-        }
-    );
+        static_cast<Pixel(*)(glm::vec3)>(linearTo8BitSRGB));
 
     auto const endTime = std::chrono::high_resolution_clock::now();
 
     {
         auto const time = std::chrono::duration_cast<std::chrono::microseconds>(renderBeginTime - preprocessBeginTime);
-        auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
-        std::cout << "Preprocess done in " << time.count() << "us" << std::endl;
+        auto const timePerModel = time.count() / static_cast<double>(scene.models.meshes.size());
+        std::cout << "Preprocess done in " << time.count() << "us (" << timePerModel << "us per model)" << std::endl;
     }
 
     {
         auto const time = std::chrono::duration_cast<std::chrono::microseconds>(postprocessBeginTime - renderBeginTime);
         auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
-        std::cout << "Render done in " << time.count() << "us (" << timePerPixel << " us per pixel)" << std::endl;
+        auto const timePerSample = timePerPixel / PIXEL_SAMPLE_RATE;
+        std::cout << "Render done in " << time.count() << "us (" << timePerPixel << "us per pixel, "
+            << timePerSample << "us per sample)" << std::endl;
     }
 
     {
         auto const time = std::chrono::duration_cast<std::chrono::microseconds>(endTime - postprocessBeginTime);
         auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
-        std::cout << "Postprocess done in " << time.count() << "us (" << timePerPixel << " us per pixel)" << std::endl;
+        std::cout << "Postprocess done in " << time.count() << "us (" << timePerPixel << "us per pixel)" << std::endl;
     }
 
     {
         auto const time = std::chrono::duration_cast<std::chrono::microseconds>(endTime - preprocessBeginTime);
-        auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
-        std::cout << "Pipeline done in " << time.count() << "us (" << timePerPixel << " us per pixel)" << std::endl;
+        std::cout << "Pipeline done in " << time.count() << "us" << std::endl;
     }
 
     {

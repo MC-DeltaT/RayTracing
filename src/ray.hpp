@@ -51,6 +51,8 @@ inline PreprocessedTri preprocessTri(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3) {
 inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRange const> vertexRanges,
         Span<MeshTri const> tris, PermutedSpan<IndexRange const> triRanges, std::vector<PreprocessedTri>& resultTris,
         std::vector<IndexRange>& resultTriRanges) {
+    assert(vertexRanges.size() == triRanges.size());
+
     auto const instanceCount = vertexRanges.size();
 
     {
@@ -82,18 +84,25 @@ inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRang
 }
 
 
-inline std::optional<RayTriIntersection> rayTriIntersection(Ray const& ray, PreprocessedTri const& triangle) {
+template<bool ConsiderBackFacing>
+std::optional<RayTriIntersection> rayTriIntersection(Ray const& ray, PreprocessedTri const& triangle,
+    std::pair<float, float> const& paramBounds);
+
+template<>
+inline std::optional<RayTriIntersection> rayTriIntersection<false>(Ray const& ray, PreprocessedTri const& triangle,
+        std::pair<float, float> const& paramBounds) {
+    assert(isUnitVector(ray.direction));
+    assert(paramBounds.first >= 0.0f && paramBounds.first <= paramBounds.second);
+
     auto det = glm::dot(ray.direction, triangle.normal);
-    if (det > -1e-6f) {
+    if (det >= -1e-6f) {
         return std::nullopt;
     }
     det = -det;
-    assert(det > 0);
     auto const invDet = 1.0f / det;
-    assert(invDet > 0);
     auto const AO = ray.origin - triangle.v1;
-    auto t = glm::dot(AO, triangle.normal);
-    if (t < 1e-6f) {
+    auto const t = glm::dot(AO, triangle.normal) * invDet;
+    if (t > paramBounds.second || t < paramBounds.first) {
         return std::nullopt;
     }
     auto const DAO = glm::cross(AO, ray.direction);
@@ -102,7 +111,34 @@ inline std::optional<RayTriIntersection> rayTriIntersection(Ray const& ray, Prep
     if (u >= 0.0f && v >= 0.0f && u + v <= det) {
         u *= invDet;
         v *= invDet;
-        t *= invDet;
+        return {{t, u, v}};
+    }
+    else {
+        return std::nullopt;
+    }
+}
+
+template<>
+inline std::optional<RayTriIntersection> rayTriIntersection<true>(Ray const& ray, PreprocessedTri const& triangle,
+        std::pair<float, float> const& paramBounds) {
+    assert(isUnitVector(ray.direction));
+    assert(paramBounds.first >= 0.0f && paramBounds.first <= paramBounds.second);
+
+    auto det = glm::dot(ray.direction, triangle.normal);
+    if (det >= -1e-6f && det <= 1e-6f) {
+        return std::nullopt;
+    }
+    det = -det;
+    auto const invDet = 1.0f / det;
+    auto const AO  = ray.origin - triangle.v1;
+    auto const t = glm::dot(AO, triangle.normal) * invDet;
+    if (t > paramBounds.second || t < paramBounds.first) {
+        return std::nullopt;
+    }
+    auto const DAO = glm::cross(AO, ray.direction);
+    auto const u = glm::dot(triangle.v1ToV3, DAO) * invDet;
+    auto const v = -glm::dot(triangle.v1ToV2, DAO) * invDet;
+    if (u >= 0.0f && v >= 0.0f && u + v <= 1.0f) {
         return {{t, u, v}};
     }
     else {
@@ -111,19 +147,20 @@ inline std::optional<RayTriIntersection> rayTriIntersection(Ray const& ray, Prep
 }
 
 
-inline std::optional<RayMeshIntersection> rayNearestIntersection(Span<PreprocessedTri const> tris,
-        Span<IndexRange const> triRanges, Ray const& ray) {
-    RayMeshIntersection nearestIntersection{{1e6}};
+template<bool ConsiderBackFacing>
+std::optional<RayMeshIntersection> rayNearestIntersection(Span<PreprocessedTri const> tris,
+        Span<IndexRange const> triRanges, Ray const& ray, std::pair<float, float> paramBounds) {
+    RayMeshIntersection nearestIntersection{{paramBounds.second}};
     bool hasIntersection = false;
     for (std::size_t meshIndex = 0; meshIndex < triRanges.size(); ++meshIndex) {
         auto const& triRange = triRanges[meshIndex];
         auto const meshTris = tris[triRange];
         for (std::size_t triIndex = 0; triIndex < meshTris.size(); ++triIndex) {
-            if (auto const intersection = rayTriIntersection(ray, meshTris[triIndex])) {
-                if (intersection->rayParam < nearestIntersection.rayParam) {
-                    nearestIntersection = {*intersection, meshIndex, triIndex};
-                    hasIntersection = true;
-                }
+            auto const intersection = rayTriIntersection<ConsiderBackFacing>(ray, meshTris[triIndex],
+                {paramBounds.first, nearestIntersection.rayParam});
+            if (intersection) {
+                nearestIntersection = {*intersection, meshIndex, triIndex};
+                hasIntersection = true;
             }
         }
     }
@@ -136,15 +173,14 @@ inline std::optional<RayMeshIntersection> rayNearestIntersection(Span<Preprocess
 }
 
 
-inline bool rayIntersectsAny(Span<PreprocessedTri const> tris, Span<IndexRange const> triRanges, Ray ray,
-        float paramBound) {
+template<bool ConsiderBackFacing>
+bool rayIntersectsAny(Span<PreprocessedTri const> tris, Span<IndexRange const> triRanges, Ray ray,
+        std::pair<float, float> paramBounds) {
     for (auto const& triRange : triRanges) {
         auto const meshTris = tris[triRange];
         for (auto const& tri : meshTris) {
-            if (auto const intersection = rayTriIntersection(ray, tri)) {
-                if (intersection->rayParam <= paramBound) {
-                    return true;
-                }
+            if (rayTriIntersection<ConsiderBackFacing>(ray, tri, paramBounds)) {
+                return true;
             }
         }
     }

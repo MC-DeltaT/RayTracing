@@ -34,7 +34,6 @@ struct Scene {
     struct Lights {
         std::vector<PointLight> point;
         std::vector<DirectionalLight> directional;
-        std::vector<SpotLight> spot;
     } lights;
     Meshes meshes;
     std::vector<Material> materials;

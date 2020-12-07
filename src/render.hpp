@@ -42,7 +42,7 @@ struct RenderData {
 };
 
 
-constexpr inline static unsigned PIXEL_SAMPLE_RATE = 256;
+constexpr inline static unsigned PIXEL_SAMPLE_RATE = 128;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
 constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 1;
@@ -182,13 +182,11 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
         auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
         // TODO: importance sampling
-        std::uniform_real_distribution<float> cosThetaDist{0.0f, 1.0f};
-        std::uniform_real_distribution<float> phiDist{0.0f, glm::two_pi<float>()};
 
         for (unsigned i = 0; i < LIGHT_RECEIVE_SAMPLES; ++i) {
-            auto const cosTheta = cosThetaDist(randomEngine);
+            auto const cosTheta = randomEngine.unitFloat();
             auto const sinTheta = std::sqrt(1.0f - square(cosTheta));
-            auto const phi = phiDist(randomEngine);
+            auto const phi = randomEngine.angle();
             auto const cosPhi = std::cos(phi);
             auto const sinPhi = std::sin(phi);
             
@@ -221,11 +219,10 @@ inline void render(RenderData const& data, Span<glm::vec3> image) {
     std::transform(std::execution::par, pixelRange.begin(), pixelRange.end(), image.begin(), [&data](auto index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
-        std::uniform_real_distribution<float> sampleDist{0.0f, 1.0f};
         glm::vec3 colour{0.0f, 0.0f, 0.0f};
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
-            auto const sampleX = pixelX + sampleDist(randomEngine);
-            auto const sampleY = pixelY + sampleDist(randomEngine);
+            auto const sampleX = pixelX + randomEngine.unitFloat();
+            auto const sampleY = pixelY + randomEngine.unitFloat();
             auto const rayDirection = glm::normalize(data.pixelToRayTransform * glm::vec3{sampleX, sampleY, 1.0f});
             Ray const ray{data.cameraPosition, rayDirection};
             colour += rayTrace(data.rayTraceData, ray);

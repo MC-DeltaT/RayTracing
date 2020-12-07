@@ -113,8 +113,8 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 1920;
-    constexpr unsigned IMAGE_HEIGHT = 1080;
+    constexpr unsigned IMAGE_WIDTH = 1000;
+    constexpr unsigned IMAGE_HEIGHT = 650;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<Pixel> srgbBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};

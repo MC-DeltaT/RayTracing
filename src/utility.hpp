@@ -4,12 +4,14 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <random>
 #include <type_traits>
 #include <utility>
 
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/vec3.hpp>
 
 
@@ -259,6 +261,30 @@ private:
 };
 
 
+class FastRNG {
+public:
+    FastRNG(unsigned long long state) :
+        _state{state}
+    {}
+
+    std::uint16_t value() {
+        _state = (214013 * _state + 2531011); 
+        return (_state >> 16) & 0x7FFF;
+    }
+
+    float unitFloat() {
+        return static_cast<float>(value()) / 0x7FFF;
+    }
+
+    float angle() {
+        return (glm::two_pi<float>() / 0x7FFF) * value();
+    }
+
+private:
+    unsigned long long _state;
+};
+
+
 template<typename T>
 constexpr T square(T val) {
     return val * val;
@@ -294,4 +320,4 @@ inline std::pair<glm::vec3, glm::vec3> orthonormalBasis(glm::vec3 const& vec) {
 }
 
 
-inline static thread_local std::default_random_engine randomEngine{std::random_device{}()};
+inline static thread_local FastRNG randomEngine{std::random_device{}()};

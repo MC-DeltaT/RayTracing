@@ -7,7 +7,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 
 #include <glm/vec3.hpp>
 
@@ -41,30 +40,25 @@ void medianFilter(Span<Pixel const> image, std::size_t imageWidth, Span<Pixel> r
     assert(image.data() != result.data());
     assert(image.size() == result.size());
 
-    std::size_t imageHeight = image.size() / imageWidth;
-
-    auto const getPixel = [&image, imageHeight, imageWidth](std::ptrdiff_t i, std::ptrdiff_t j) -> std::optional<Pixel> {
-        if (i >= 0 && j >= 0 && i < imageHeight && j < imageWidth) {
-            return image[imageWidth * i + j];
-        }
-        else {
-            return std::nullopt;
-        }
-    };
+    std::ptrdiff_t const imageHeightS = image.size() / imageWidth;
+    std::ptrdiff_t const imageWidthS = imageWidth;
+    constexpr std::ptrdiff_t radiusS = Radius;
 
     std::array<std::uint8_t, square(2 * Radius + 1)> rs;
     std::array<std::uint8_t, square(2 * Radius + 1)> gs;
     std::array<std::uint8_t, square(2 * Radius + 1)> bs;
-    for (std::ptrdiff_t i = 0; i < imageHeight; ++i) {
-        for (std::ptrdiff_t j = 0; j < imageWidth; ++j) {
+    for (std::ptrdiff_t i = 0; i < imageHeightS; ++i) {
+        for (std::ptrdiff_t j = 0; j < imageWidthS; ++j) {
             unsigned neighbours = 0;
-            for (std::ptrdiff_t di = -static_cast<std::ptrdiff_t>(Radius); di <= Radius; ++di) {
-                for (std::ptrdiff_t dj = -static_cast<std::ptrdiff_t>(Radius); dj <= Radius; ++dj) {
-                    auto const pixel = getPixel(i + di, j + dj);
-                    if (pixel) {
-                        rs[neighbours] = pixel->r;
-                        gs[neighbours] = pixel->g;
-                        bs[neighbours] = pixel->b;
+            for (std::ptrdiff_t di = -radiusS; di <= radiusS; ++di) {
+                for (std::ptrdiff_t dj = -radiusS; dj <= radiusS; ++dj) {
+                    auto const i_ = i + di;
+                    auto const j_ = j + dj;
+                    if (i_ >= 0 && j_ >= 0 && i_ < imageHeightS && j_ < imageWidthS) {
+                        auto const pixel = image[i_ * imageWidth + j_];
+                        rs[neighbours] = pixel.r;
+                        gs[neighbours] = pixel.g;
+                        bs[neighbours] = pixel.b;
                         ++neighbours;
                     }
                 }

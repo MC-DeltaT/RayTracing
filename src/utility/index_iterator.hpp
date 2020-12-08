@@ -30,7 +30,7 @@ public:
 	}
 
 	reference operator[](difference_type index) const {
-		assert(index > 0 || index <= _index);
+		assert(index >= 0 || static_cast<std::size_t>(-index) <= _index);
 		return _index + index;
 	}
 

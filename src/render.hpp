@@ -14,11 +14,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstddef>
 #include <execution>
-#include <random>
-#include <utility>
-#include <vector>
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
@@ -53,20 +49,9 @@ constexpr inline static unsigned PIXEL_SAMPLE_RATE = 128;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
 constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 4;
-constexpr inline static std::size_t SIN_COS_LUT_SAMPLES = 1ull << 20;
 
 
-inline static std::vector<std::pair<float, float>> const SIN_COS_LUT = []() {
-    std::vector<std::pair<float, float>> result(SIN_COS_LUT_SAMPLES);
-    for (std::size_t i = 0; i < SIN_COS_LUT_SAMPLES; ++i) {
-        auto const x = i / glm::two_pi<double>();
-        result[i] = {static_cast<float>(std::sin(x)), static_cast<float>(std::cos(x))};
-    }
-    return result;
-}();
-
-
-inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bounce = 0) {
+inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
     if (bounce > RAY_BOUNCE_LIMIT) {
         return {0.0f, 0.0f, 0.0f};
     }
@@ -200,12 +185,14 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
         for (unsigned i = 0; i < bounceSamples; ++i) {
             auto const cosTheta = randomEngine.unitFloat();
             auto const sinTheta = std::sqrt(1.0f - square(cosTheta));
-            auto const [sinPhi, cosPhi] = SIN_COS_LUT[randomEngine.value() % SIN_COS_LUT_SAMPLES];
+            auto const phi = randomEngine.angle();
+            auto const sinPhi = std::sin(phi);
+            auto const cosPhi = std::cos(phi);
             
             auto const incident = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
 
             auto const weight = brdf(cosTheta, incident, outgoing);
-            auto const incidentLight = rayTrace(data, {point, incident}, bounce + 1);
+            auto const incidentLight = rayTrace(data, {point, incident}, randomEngine, bounce + 1);
             reflected += weight * incidentLight;
         }
     }
@@ -225,13 +212,14 @@ inline void render(RenderData const& data, Span<glm::vec3> image) {
     std::transform(std::execution::par, IndexIterator{0}, IndexIterator{image.size()}, image.begin(), [&data](auto index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
+        auto& randomEngine = ::randomEngine;
         glm::vec3 colour{0.0f, 0.0f, 0.0f};
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
             auto const sampleX = pixelX + randomEngine.unitFloat();
             auto const sampleY = pixelY + randomEngine.unitFloat();
             auto const rayDirection = glm::normalize(data.pixelToRayTransform * glm::vec3{sampleX, sampleY, 1.0f});
             Ray const ray{data.cameraPosition, rayDirection};
-            colour += rayTrace(data.rayTraceData, ray);
+            colour += rayTrace(data.rayTraceData, ray, randomEngine);
         }
         colour /= PIXEL_SAMPLE_RATE;
         return colour;

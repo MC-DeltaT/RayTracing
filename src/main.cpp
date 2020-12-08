@@ -138,10 +138,10 @@ int main() {
         {plane(), cube()},   // Meshes
         {   // Materials
             {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
-            {{1.0f, 0.0f, 1.0f}, 0.5f, 0.0f, {0.5f, 0.0f, 0.5f}},       // Yellow
-            {{0.0f, 1.0f, 1.0f}, 0.5f, 0.0f, {0.0f, 0.5f, 0.5f}},       // Cyan
-            {{1.0f, 1.0f, 0.0f}, 0.5f, 0.0f, {0.5f, 0.5f, 0.0f}},       // Magenta
-            {{1.0f, 1.0f, 1.0f}, 0.005f, 1.0f, {0.0f, 0.0f, 0.0f}}      // Mirror
+            {{1.0f, 0.0f, 1.0f}, 0.75f, 0.5f, {0.5f, 0.0f, 0.5f}},      // Yellow
+            {{0.0f, 1.0f, 1.0f}, 0.75f, 0.5f, {0.0f, 0.5f, 0.5f}},      // Cyan
+            {{1.0f, 1.0f, 0.0f}, 0.75f, 0.5f, {0.5f, 0.5f, 0.0f}},      // Magenta
+            {{1.0f, 1.0f, 1.0f}, 0.001f, 1.0f, {0.0f, 0.0f, 0.0f}}      // Mirror
         },
         {   // Models
             {   // Mesh instance transforms

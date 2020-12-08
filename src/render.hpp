@@ -78,7 +78,8 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
     assert(isUnitVector(normal));
     assert(isUnitVector(outgoing));
     auto const nDotO = std::max(glm::dot(normal, outgoing), 0.0f);
-    auto const specularNormFactor = 1.0f / (4.0f * nDotO);
+    auto const specularNormIS = 1.0f / nDotO;
+    auto const specularNormL = specularNormIS / 4.0f;
 
     assert(material.roughness > 0.0f);
     auto const roughnessSq = square(material.roughness);
@@ -91,10 +92,11 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
     auto const f0 = oneMinusMetalness * glm::vec3{0.04f} + material.metalness * material.colour;
     auto const oneMinusF0 = 1.0f - f0;
 
-    auto const adjustedColour = oneMinusMetalness / glm::pi<float>() * material.colour;
+    auto const adjustedColourIS = oneMinusMetalness * material.colour;
+    auto const adjustedColourL = adjustedColourIS / glm::pi<float>();
 
+    // GGX microfacet distribution function.
     auto const ndf = [ndfAlphaSq](float nDotH) {
-        // GGX microfacet distribution function.
         if (nDotH <= 0.0f) {
             return 0.0f;
         }
@@ -104,8 +106,8 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
         }
     };
 
+    // GGX geometry function + Smith's method.
     auto const geometry = [geometryAlphaSq](float nDotI, float nDotO, float hDotI, float hDotO) {
-        // GGX geometry function + Smith's method.
         auto const partial = [geometryAlphaSq](float nDotR, float hDotR) {
             if (hDotR < 0.0f != nDotR < 0.0f) {
                 return 0.0f;
@@ -119,14 +121,14 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
         return partial(nDotI, hDotI) * partial(nDotO, hDotO);
     };
 
+    // Fresnel-Schlick equation.
     auto const fresnel = [&f0, &oneMinusF0](float hDotO) {
-        // Fresnel-Schlick equation.
         return f0 + oneMinusF0 * iPow<5>(1.0f - hDotO);
     };
 
-    auto const brdf = [&ndf, &geometry, &fresnel, &normal, nDotO, specularNormFactor, &adjustedColour]
-            (float nDotI, glm::vec3 const& incident, glm::vec3 const& outgoing) {
-        // Cook-Torrance microfacet reflection model.
+    // BRDF for lights.
+    auto const brdfL = [&ndf, &geometry, &fresnel, &outgoing, &normal, nDotO, specularNormL, &adjustedColourL]
+            (glm::vec3 const& incident, float nDotI) {
         auto const halfway = glm::normalize(incident + outgoing);
         auto const nDotH = std::max(glm::dot(normal, halfway), 0.0f);
         // Angle between H and I or O must be < 90 degrees, so no need to clamp dot product.
@@ -136,13 +138,28 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
         auto const specularD = ndf(nDotH);
         auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
         auto const specularF = fresnel(hDotO);
-        auto const specular = specularD * specularG * specularF * specularNormFactor;
-        auto const diffuse = (1.0f - specularF) * nDotI * adjustedColour;
+        auto const specular = specularD * specularG * specularF * specularNormL;
+        auto const diffuse = (1.0f - specularF) * nDotI * adjustedColourL;
         return diffuse + specular;
     };
 
-    glm::vec3 reflected{0.0f, 0.0f, 0.0f};
+    // BRDF for importance-sampled ray bounce.
+    auto const brdfIS = [&geometry, &fresnel, &outgoing, &normal, nDotO, specularNormIS, &adjustedColourIS]
+            (glm::vec3 const& halfway, float nDotH, glm::vec3& incident) {
+        auto const hDotO = glm::dot(halfway, outgoing);
+        incident = 2.0f * hDotO * halfway - outgoing;
+        auto const hDotI = glm::dot(halfway, incident);
+        auto const nDotI = std::max(glm::dot(normal, halfway), 0.0f);
 
+        auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
+        auto const specularF = fresnel(hDotO);
+        auto const specular = specularG * specularF * specularNormIS;
+        auto const diffuse = (1.0f - specularF) * nDotI * adjustedColourIS;
+        return diffuse + specular;
+    };
+
+    // Light contribution from dedicated light entities.
+    glm::vec3 lightsReflected{0.0f, 0.0f, 0.0f};
     for (auto const& light : data.pointLights) {
         auto incident = light.position - point;
         auto nDotI = glm::dot(incident, normal);
@@ -154,12 +171,11 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
             auto const isBlocked = rayIntersectsAny<true>(data.preprocessedTris, data.preprocessedTriRanges, shadowRay, 
                 {RAY_INTERSECTION_MIN_PARAM, distanceToLight});
             if (!isBlocked) {
-                auto const weight = brdf(nDotI, incident, outgoing);
-                reflected += weight * light.colour;
+                auto const weight = brdfL(incident, nDotI);
+                lightsReflected += weight * light.colour;
             }
         }
     }
-    
     for (auto const& light : data.directionalLights) {
         assert(isUnitVector(light.direction));
         auto nDotI = glm::dot(light.direction, normal);
@@ -170,37 +186,40 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
                 {RAY_INTERSECTION_MIN_PARAM, INFINITY});
             if (!isBlocked) {
                 nDotI = -nDotI;
-                auto const weight = brdf(nDotI, incident, outgoing);
-                reflected += weight * light.colour;
+                auto const weight = brdfL(incident, nDotI);
+                lightsReflected += weight * light.colour;
             }
         }
     }
+    lightsReflected *= glm::two_pi<float>();
 
+    // Light contribution from other surfaces.
+    glm::vec3 bouncedReflected{0.0f, 0.0f, 0.0f};
     unsigned const bounceSamples = std::max<unsigned>(LIGHT_RECEIVE_SAMPLES >> bounce, 1);
     {
         auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
-        // TODO: importance sampling
-
         for (unsigned i = 0; i < bounceSamples; ++i) {
-            auto const cosTheta = randomEngine.unitFloat();
+            auto const thetaParam = randomEngine.unitFloat();
+            auto const cosTheta = 1.0f / std::sqrt(1.0f + ndfAlphaSq * thetaParam / (1.0f - thetaParam));
             auto const sinTheta = std::sqrt(1.0f - square(cosTheta));
             auto const phi = randomEngine.angle();
             auto const sinPhi = std::sin(phi);
             auto const cosPhi = std::cos(phi);
             
-            auto const incident = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
+            auto const halfway = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
 
-            auto const weight = brdf(cosTheta, incident, outgoing);
+            glm::vec3 incident;
+            auto const weight = brdfIS(halfway, cosTheta, incident);
             auto const incidentLight = rayTrace(data, {point, incident}, randomEngine, bounce + 1);
-            reflected += weight * incidentLight;
+            bouncedReflected += weight * incidentLight;
         }
     }
 
     // TODO: light transmission
 
     auto const receivedRays = bounceSamples + data.pointLights.size() + data.directionalLights.size();
-    reflected *= glm::two_pi<float>() / receivedRays;
+    auto const reflected = (lightsReflected + bouncedReflected) / static_cast<float>(receivedRays);
 
     auto const colour = material.emission + reflected;
     return colour;

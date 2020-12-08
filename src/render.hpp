@@ -9,8 +9,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <execution>
 #include <random>
+#include <utility>
+#include <vector>
 
 #include <boost/range/counting_range.hpp>
 #include <glm/common.hpp>
@@ -46,6 +49,17 @@ constexpr inline static unsigned PIXEL_SAMPLE_RATE = 128;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
 constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 4;
+constexpr inline static std::size_t SIN_COS_LUT_SAMPLES = 1ull << 20;
+
+
+inline static std::vector<std::pair<float, float>> const SIN_COS_LUT = []() {
+    std::vector<std::pair<float, float>> result(SIN_COS_LUT_SAMPLES);
+    for (std::size_t i = 0; i < SIN_COS_LUT_SAMPLES; ++i) {
+        auto const x = i / glm::two_pi<double>();
+        result[i] = {static_cast<float>(std::sin(x)), static_cast<float>(std::cos(x))};
+    }
+    return result;
+}();
 
 
 inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bounce = 0) {
@@ -62,8 +76,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
     auto const& vertexRange = data.vertexRanges[intersection->mesh];
     auto const vertexNormals = data.vertexNormals[vertexRange];
     auto const& triRange = data.triRanges[intersection->mesh];
-    auto const tris = data.tris[triRange];
-    auto const& tri = tris[intersection->tri];
+    auto const& tri = data.tris[triRange][intersection->tri];
     auto const pointCoord2 = intersection->pointCoord2;
     auto const pointCoord3 = intersection->pointCoord3;
     auto const pointCoord1 = 1.0f - pointCoord2 - pointCoord3;
@@ -85,11 +98,11 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
 
     assert(isNormalised(material.metalness));
     assert(isNormalised(material.colour.r) && isNormalised(material.colour.g) && isNormalised(material.colour.b));
-    auto const f0 = glm::mix(glm::vec3{0.04f}, material.colour, material.metalness);
+    auto const oneMinusMetalness = 1.0f - material.metalness;
+    auto const f0 = oneMinusMetalness * glm::vec3{0.04f} + material.metalness * material.colour;
     auto const oneMinusF0 = 1.0f - f0;
 
-    auto const oneMinusMetalness = 1.0f - material.metalness;
-    auto const colourOverPi = material.colour / glm::pi<float>();
+    auto const adjustedColour = oneMinusMetalness / glm::pi<float>() * material.colour;
 
     auto const ndf = [ndfAlphaSq](float nDotH) {
         // GGX microfacet distribution function.
@@ -122,12 +135,12 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
         return f0 + oneMinusF0 * iPow<5>(1.0f - hDotO);
     };
 
-    auto const brdf = [&ndf, &geometry, &fresnel, &normal, nDotO, specularNormFactor, oneMinusMetalness, &colourOverPi]
+    auto const brdf = [&ndf, &geometry, &fresnel, &normal, nDotO, specularNormFactor, &adjustedColour]
             (float nDotI, glm::vec3 const& incident, glm::vec3 const& outgoing) {
         // Cook-Torrance microfacet reflection model.
         auto const halfway = glm::normalize(incident + outgoing);
         auto const nDotH = std::max(glm::dot(normal, halfway), 0.0f);
-        // Angle between H and I or O must be < 90 degrees, so no need to clamp result.
+        // Angle between H and I or O must be < 90 degrees, so no need to clamp dot product.
         auto const hDotI = glm::dot(halfway, incident);
         auto const hDotO = glm::dot(halfway, outgoing);
 
@@ -135,8 +148,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
         auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
         auto const specularF = fresnel(hDotO);
         auto const specular = specularD * specularG * specularF * specularNormFactor;
-        auto const diffuseCoeff = (1.0f - specularF) * oneMinusMetalness;
-        auto const diffuse = diffuseCoeff * nDotI * colourOverPi;
+        auto const diffuse = (1.0f - specularF) * nDotI * adjustedColour;
         return diffuse + specular;
     };
 
@@ -184,9 +196,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
         for (unsigned i = 0; i < bounceSamples; ++i) {
             auto const cosTheta = randomEngine.unitFloat();
             auto const sinTheta = std::sqrt(1.0f - square(cosTheta));
-            auto const phi = randomEngine.angle();
-            auto const cosPhi = std::cos(phi);
-            auto const sinPhi = std::sin(phi);
+            auto const [sinPhi, cosPhi] = SIN_COS_LUT[randomEngine.value() % SIN_COS_LUT_SAMPLES];
             
             auto const incident = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
 

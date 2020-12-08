@@ -1,6 +1,8 @@
 #pragma once
 
-#include "utility.hpp"
+#include "utility/misc.hpp"
+#include "utility/span.hpp"
+#include "utility/permuted_span.hpp"
 
 #include <algorithm>
 #include <cstddef>

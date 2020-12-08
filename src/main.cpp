@@ -2,7 +2,8 @@
 #include "mesh.hpp"
 #include "render.hpp"
 #include "scene.hpp"
-#include "utility.hpp"
+#include "utility/permuted_span.hpp"
+#include "utility/span.hpp"
 
 #include <algorithm>
 #include <chrono>

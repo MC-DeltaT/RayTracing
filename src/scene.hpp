@@ -5,7 +5,7 @@
 #include "material.hpp"
 #include "mesh.hpp"
 #include "ray.hpp"
-#include "utility.hpp"
+#include "utility/misc.hpp"
 
 #include <cstddef>
 #include <initializer_list>

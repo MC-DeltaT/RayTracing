@@ -1,6 +1,9 @@
 #pragma once
 
-#include "utility.hpp"
+#include "utility/math.hpp"
+#include "utility/misc.hpp"
+#include "utility/permuted_span.hpp"
+#include "utility/span.hpp"
 
 #include <cassert>
 #include <cstddef>

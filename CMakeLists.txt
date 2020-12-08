@@ -42,12 +42,6 @@ add_subdirectory("${LIBRARY_DIRECTORY}/glm")
 target_link_libraries("${EXECUTABLE_NAME}" glm)
 
 
-# Boost
-
-add_subdirectory("${LIBRARY_DIRECTORY}/boost")
-target_link_libraries("${EXECUTABLE_NAME}" boost)
-
-
 # Linux TBB (for std::execution)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

@@ -4,7 +4,12 @@
 #include "material.hpp"
 #include "mesh.hpp"
 #include "ray.hpp"
-#include "utility.hpp"
+#include "utility/index_iterator.hpp"
+#include "utility/math.hpp"
+#include "utility/misc.hpp"
+#include "utility/permuted_span.hpp"
+#include "utility/random.hpp"
+#include "utility/span.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -15,7 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/range/counting_range.hpp>
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
@@ -218,8 +222,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, unsigned bou
 
 inline void render(RenderData const& data, Span<glm::vec3> image) {
     assert(image.size() == data.imageWidth * data.imageHeight);
-    auto const pixelRange = boost::counting_range(0ull, image.size());
-    std::transform(std::execution::par, pixelRange.begin(), pixelRange.end(), image.begin(), [&data](auto index) {
+    std::transform(std::execution::par, IndexIterator{0}, IndexIterator{image.size()}, image.begin(), [&data](auto index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
         glm::vec3 colour{0.0f, 0.0f, 0.0f};

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utility.hpp"
+#include "utility/math.hpp"
 
 #include <cassert>
 #include <cmath>

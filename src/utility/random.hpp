@@ -12,15 +12,18 @@ public:
         _state{state}
     {}
 
+    // Generates random uint in range [0, 2^32).
     std::uint32_t value() {
         _state = (214013 * _state + 2531011); 
         return static_cast<std::uint32_t>(_state >> 16);
     }
 
+    // Generates random float in range [0, 1].
     float unitFloat() {
         return static_cast<float>(value()) / 0xFFFFFFFF;
     }
 
+    // Generates random float in range [0, 2*pi].
     float angle() {
         return (glm::two_pi<float>() / 0xFFFFFFFF) * value();
     }

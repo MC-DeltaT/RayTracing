@@ -45,10 +45,10 @@ struct RenderData {
 };
 
 
-constexpr inline static unsigned PIXEL_SAMPLE_RATE = 128;
+constexpr inline static unsigned PIXEL_SAMPLE_RATE = 64;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
-constexpr inline static unsigned LIGHT_RECEIVE_SAMPLES = 4;
+constexpr inline static unsigned RAY_BOUNCE_SAMPLES = 8;
 
 
 inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
@@ -195,14 +195,14 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
 
     // Light contribution from other surfaces.
     glm::vec3 bouncedReflected{0.0f, 0.0f, 0.0f};
-    unsigned const bounceSamples = std::max<unsigned>(LIGHT_RECEIVE_SAMPLES >> bounce, 1);
     {
         auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
-        for (unsigned i = 0; i < bounceSamples; ++i) {
+        for (unsigned i = 0; i < RAY_BOUNCE_SAMPLES; ++i) {
             auto const thetaParam = randomEngine.unitFloat();
-            auto const cosTheta = 1.0f / std::sqrt(1.0f + ndfAlphaSq * thetaParam / (1.0f - thetaParam));
-            auto const sinTheta = std::sqrt(1.0f - square(cosTheta));
+            auto const cosThetaSq = 1.0f / (1.0f + ndfAlphaSq * thetaParam / (1.0f - thetaParam));
+            auto const cosTheta = std::sqrt(cosThetaSq);
+            auto const sinTheta = std::sqrt(1.0f - cosThetaSq);
             auto const phi = randomEngine.angle();
             auto const sinPhi = std::sin(phi);
             auto const cosPhi = std::cos(phi);
@@ -218,7 +218,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
 
     // TODO: light transmission
 
-    auto const receivedRays = bounceSamples + data.pointLights.size() + data.directionalLights.size();
+    auto const receivedRays = RAY_BOUNCE_SAMPLES + data.pointLights.size() + data.directionalLights.size();
     auto const reflected = (lightsReflected + bouncedReflected) / static_cast<float>(receivedRays);
 
     auto const colour = material.emission + reflected;
@@ -231,7 +231,7 @@ inline void render(RenderData const& data, Span<glm::vec3> image) {
     std::transform(std::execution::par, IndexIterator{0}, IndexIterator{image.size()}, image.begin(), [&data](auto index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
-        auto& randomEngine = ::randomEngine;
+        auto& randomEngine = ::randomEngine;    // Access random engine here to force static initialisation.
         glm::vec3 colour{0.0f, 0.0f, 0.0f};
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
             auto const sampleX = pixelX + randomEngine.unitFloat();

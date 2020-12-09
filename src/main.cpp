@@ -2,6 +2,7 @@
 #include "mesh.hpp"
 #include "render.hpp"
 #include "scene.hpp"
+#include "utility/misc.hpp"
 #include "utility/permuted_span.hpp"
 #include "utility/span.hpp"
 
@@ -114,8 +115,8 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 1000;
-    constexpr unsigned IMAGE_HEIGHT = 650;
+    constexpr unsigned IMAGE_WIDTH = 1920;
+    constexpr unsigned IMAGE_HEIGHT = 1080;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<Pixel> srgbBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
@@ -138,9 +139,9 @@ int main() {
         {plane(), cube()},   // Meshes
         {   // Materials
             {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
-            {{1.0f, 0.0f, 1.0f}, 0.75f, 0.5f, {0.5f, 0.0f, 0.5f}},      // Yellow
-            {{0.0f, 1.0f, 1.0f}, 0.75f, 0.5f, {0.0f, 0.5f, 0.5f}},      // Cyan
-            {{1.0f, 1.0f, 0.0f}, 0.75f, 0.5f, {0.5f, 0.5f, 0.0f}},      // Magenta
+            {{1.0f, 0.0f, 1.0f}, 0.2f, 0.75f, {0.5f, 0.0f, 0.5f}},      // Yellow
+            {{0.0f, 1.0f, 1.0f}, 0.2f, 0.75f, {0.0f, 0.5f, 0.5f}},      // Cyan
+            {{1.0f, 1.0f, 0.0f}, 0.2f, 0.75f, {0.5f, 0.5f, 0.0f}},      // Magenta
             {{1.0f, 1.0f, 1.0f}, 0.001f, 1.0f, {0.0f, 0.0f, 0.0f}}      // Mirror
         },
         {   // Models
@@ -201,28 +202,31 @@ int main() {
     auto const endTime = std::chrono::high_resolution_clock::now();
 
     {
-        auto const time = std::chrono::duration_cast<std::chrono::microseconds>(renderBeginTime - preprocessBeginTime);
-        auto const timePerModel = time.count() / static_cast<double>(scene.models.meshes.size());
-        std::cout << "Preprocess done in " << time.count() << "us (" << timePerModel << "us per model)" << std::endl;
+        auto const time = std::chrono::duration_cast<FPSeconds>(renderBeginTime - preprocessBeginTime);
+        auto const timePerModel = time / scene.models.meshes.size();
+        std::cout << "Preprocess done in " << formatDuration(time)
+            << " (" << formatDuration(timePerModel) << " per model)" << '\n';
     }
 
     {
-        auto const time = std::chrono::duration_cast<std::chrono::microseconds>(postprocessBeginTime - renderBeginTime);
-        auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
+        auto const time = std::chrono::duration_cast<FPSeconds>(postprocessBeginTime - renderBeginTime);
+        auto const timePerPixel = time / (IMAGE_WIDTH * IMAGE_HEIGHT);
         auto const timePerSample = timePerPixel / PIXEL_SAMPLE_RATE;
-        std::cout << "Render done in " << time.count() << "us (" << timePerPixel << "us per pixel, "
-            << timePerSample << "us per sample)" << std::endl;
+        std::cout << "Render done in " << formatDuration(time)
+            << " (" << formatDuration(timePerPixel) << " per pixel, "
+            << formatDuration(timePerSample) << " per sample)" << '\n';
     }
 
     {
-        auto const time = std::chrono::duration_cast<std::chrono::microseconds>(endTime - postprocessBeginTime);
-        auto const timePerPixel = time.count() / static_cast<double>(IMAGE_WIDTH * IMAGE_HEIGHT);
-        std::cout << "Postprocess done in " << time.count() << "us (" << timePerPixel << "us per pixel)" << std::endl;
+        auto const time = std::chrono::duration_cast<FPSeconds>(endTime - postprocessBeginTime);
+        auto const timePerPixel = time / (IMAGE_WIDTH * IMAGE_HEIGHT);
+        std::cout << "Postprocess done in " << formatDuration(time)
+            << " (" << formatDuration(timePerPixel) << " per pixel)" << '\n';
     }
 
     {
-        auto const time = std::chrono::duration_cast<std::chrono::microseconds>(endTime - preprocessBeginTime);
-        std::cout << "Pipeline done in " << time.count() << "us" << std::endl;
+        auto const time = std::chrono::duration_cast<FPSeconds>(endTime - preprocessBeginTime);
+        std::cout << "Pipeline done in " << formatDuration(time) << '\n';
     }
 
     {

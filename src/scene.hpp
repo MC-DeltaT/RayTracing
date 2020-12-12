@@ -1,7 +1,6 @@
 #pragma once
 
 #include "camera.hpp"
-#include "light.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
 #include "ray.hpp"
@@ -31,10 +30,6 @@ struct Meshes {
 
 struct Scene {
     Camera camera;
-    struct Lights {
-        std::vector<PointLight> point;
-        std::vector<DirectionalLight> directional;
-    } lights;
     Meshes meshes;
     std::vector<Material> materials;
     struct Models {

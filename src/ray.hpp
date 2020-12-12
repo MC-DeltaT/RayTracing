@@ -87,13 +87,19 @@ inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRang
 }
 
 
-template<bool ConsiderBackFacing>
+enum class SurfaceConsideration {
+    ALL,
+    FRONT_ONLY
+};
+
+
+template<SurfaceConsideration Surfaces>
 std::optional<RayTriIntersection> rayTriIntersection(Ray const& ray, PreprocessedTri const& triangle,
     std::pair<float, float> const& paramBounds);
 
 template<>
-inline std::optional<RayTriIntersection> rayTriIntersection<false>(Ray const& ray, PreprocessedTri const& triangle,
-        std::pair<float, float> const& paramBounds) {
+inline std::optional<RayTriIntersection> rayTriIntersection<SurfaceConsideration::FRONT_ONLY>
+        (Ray const& ray, PreprocessedTri const& triangle, std::pair<float, float> const& paramBounds) {
     assert(isUnitVector(ray.direction));
     assert(paramBounds.first >= 0.0f && paramBounds.first <= paramBounds.second);
 
@@ -122,8 +128,8 @@ inline std::optional<RayTriIntersection> rayTriIntersection<false>(Ray const& ra
 }
 
 template<>
-inline std::optional<RayTriIntersection> rayTriIntersection<true>(Ray const& ray, PreprocessedTri const& triangle,
-        std::pair<float, float> const& paramBounds) {
+inline std::optional<RayTriIntersection> rayTriIntersection<SurfaceConsideration::ALL>
+        (Ray const& ray, PreprocessedTri const& triangle, std::pair<float, float> const& paramBounds) {
     assert(isUnitVector(ray.direction));
     assert(paramBounds.first >= 0.0f && paramBounds.first <= paramBounds.second);
 
@@ -150,7 +156,7 @@ inline std::optional<RayTriIntersection> rayTriIntersection<true>(Ray const& ray
 }
 
 
-template<bool ConsiderBackFacing>
+template<SurfaceConsideration Surfaces>
 std::optional<RayMeshIntersection> rayNearestIntersection(Span<PreprocessedTri const> tris,
         Span<IndexRange const> triRanges, Ray const& ray, std::pair<float, float> paramBounds) {
     RayMeshIntersection nearestIntersection{{paramBounds.second}};
@@ -159,7 +165,7 @@ std::optional<RayMeshIntersection> rayNearestIntersection(Span<PreprocessedTri c
         auto const& triRange = triRanges[meshIndex];
         auto const meshTris = tris[triRange];
         for (std::size_t triIndex = 0; triIndex < meshTris.size(); ++triIndex) {
-            auto const intersection = rayTriIntersection<ConsiderBackFacing>(ray, meshTris[triIndex],
+            auto const intersection = rayTriIntersection<Surfaces>(ray, meshTris[triIndex],
                 {paramBounds.first, nearestIntersection.rayParam});
             if (intersection) {
                 nearestIntersection = {*intersection, meshIndex, triIndex};
@@ -176,13 +182,13 @@ std::optional<RayMeshIntersection> rayNearestIntersection(Span<PreprocessedTri c
 }
 
 
-template<bool ConsiderBackFacing>
+template<SurfaceConsideration Surfaces>
 bool rayIntersectsAny(Span<PreprocessedTri const> tris, Span<IndexRange const> triRanges, Ray ray,
         std::pair<float, float> paramBounds) {
     for (auto const& triRange : triRanges) {
         auto const meshTris = tris[triRange];
         for (auto const& tri : meshTris) {
-            if (rayTriIntersection<ConsiderBackFacing>(ray, tri, paramBounds)) {
+            if (rayTriIntersection<Surfaces>(ray, tri, paramBounds)) {
                 return true;
             }
         }

@@ -13,9 +13,7 @@
 #include <tuple>
 #include <vector>
 
-#include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
-#include <glm/gtc/quaternion.hpp>
 #include <glm/trigonometric.hpp>
 #include <glm/vec3.hpp>
 
@@ -115,53 +113,64 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 1920;
-    constexpr unsigned IMAGE_HEIGHT = 1080;
+    constexpr unsigned IMAGE_WIDTH = 500;
+    constexpr unsigned IMAGE_HEIGHT = 300;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
-    std::vector<Pixel> srgbBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
-    std::vector<Pixel> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<glm::vec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<glm::u8vec3> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
     Scene scene{
         {   // Camera
-            {6.0f, 2.0f, 6.5f},
-            {glm::vec3{0.18f, -2.456, 0.0f}},
+            {9.0f, 8.0f, 16.0f},
+            glm::vec3{0.3f, -2.6f, 0.0f},
             glm::radians(45.0f)
-        },
-        {   // Lights
-            {   // Point
-                {{-6.0f, 2.0f, 6.5f}, {0.25f, 0.25f, 0.25f}}
-            },
-            {   // Directional
-                {glm::normalize(glm::vec3{0.5f, -4.0f, -1.0f}), {0.02f, 0.02f, 0.02f}}
-            }
         },
         {plane(), cube()},   // Meshes
         {   // Materials
             {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
-            {{1.0f, 0.0f, 1.0f}, 0.2f, 0.75f, {0.5f, 0.0f, 0.5f}},      // Yellow
-            {{0.0f, 1.0f, 1.0f}, 0.2f, 0.75f, {0.0f, 0.5f, 0.5f}},      // Cyan
-            {{1.0f, 1.0f, 0.0f}, 0.2f, 0.75f, {0.5f, 0.5f, 0.0f}},      // Magenta
-            {{1.0f, 1.0f, 1.0f}, 0.001f, 1.0f, {0.0f, 0.0f, 0.0f}}      // Mirror
+            {{1.0f, 1.0f, 1.0f}, 0.0001f, 1.0f, {0.0f, 0.0f, 0.0f}}     // Mirror
         },
         {   // Models
             {   // Mesh instance transforms
-                {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {100.0f, 1.0f, 100.0f}},
-                {{-3.0f, 0.5f, 0.0f}},
-                {{0.0f, 0.5f, 0.0f}},
-                {{3.0f, 0.5f, 0.0f}},
-                {{0.0f, 2.5f, -5.0f}, {glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}}, {10.0f, 1.0f, 5.0f}},
+                {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {100.0f, 1.0f, 100.0f}},                     // Floor
+                {{0.0f, 0.0f, -6.0f}, glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 20.0f}},  // Mirror 1
+                {{-6.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {20.0f, 1.0f, 20.0f}}  // Mirror 2
             },
             {   // Model mesh indices
-                0, 1, 1, 1, 0
+                0, 0, 0
             },
             {   // Model material indices
-                0, 1, 2, 3, 4
+                0, 1, 1
             }
         },
         {}, // Instantiated meshes
         {}  // Preprocessed tris
     };
+
+    // Generate RGB cube models.
+    constexpr unsigned CUBE_DIVISOR = 3;
+    constexpr float CUBE_SPACING = 1.5f;
+    for (unsigned x = 0; x < CUBE_DIVISOR; ++x) {
+        for (unsigned y = 0; y < CUBE_DIVISOR; ++y) {
+            for (unsigned z = 0; z < CUBE_DIVISOR; ++z) {
+                auto const colour = srgbToLinear(glm::vec3{
+                    x / static_cast<float>(CUBE_DIVISOR - 1),
+                    y / static_cast<float>(CUBE_DIVISOR - 1),
+                    z / static_cast<float>(CUBE_DIVISOR - 1)
+                });
+                scene.materials.push_back({colour, 0.5f, 0.5f, colour});
+                glm::vec3 const position{
+                    (x - (CUBE_DIVISOR - 1) / 2.0f) * CUBE_SPACING,
+                    y * CUBE_SPACING + 0.5f,
+                    (z - (CUBE_DIVISOR - 1) / 2.0f) * CUBE_SPACING
+                };
+                scene.models.meshTransforms.push_back({position});
+                scene.models.meshes.push_back(1);
+                scene.models.materials.push_back(scene.materials.size() - 1);
+            }
+        }
+    }
 
     auto const preprocessBeginTime = std::chrono::high_resolution_clock::now();
 
@@ -186,8 +195,7 @@ int main() {
             readOnlySpan(scene.instantiatedMeshes.vertexRanges),
             PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
             readOnlySpan(scene.preprocessedTriRanges),
-            PermutedSpan{readOnlySpan(scene.materials), readOnlySpan(scene.models.materials)},
-            readOnlySpan(scene.lights.point), readOnlySpan(scene.lights.directional)
+            PermutedSpan{readOnlySpan(scene.materials), readOnlySpan(scene.models.materials)}
         }
     };
 
@@ -195,9 +203,13 @@ int main() {
     render(renderData, Span{renderBuffer});
 
     auto const postprocessBeginTime = std::chrono::high_resolution_clock::now();
-    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), srgbBuffer.begin(),
-        static_cast<Pixel(*)(glm::vec3)>(linearTo8BitSRGB));
-    medianFilter<1>(Span{srgbBuffer}, IMAGE_WIDTH, Span{imageBuffer});
+    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), reinhardToneMap);
+    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(),
+        static_cast<glm::vec3(*)(glm::vec3 const&)>(linearToSRGB));
+    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), nanToBlack);
+    std::copy(renderBuffer.cbegin(), renderBuffer.cend(), filteredBuffer.begin());
+    medianFilter<1>(Span{renderBuffer}, IMAGE_WIDTH, Span{filteredBuffer});
+    std::transform(filteredBuffer.cbegin(), filteredBuffer.cend(), imageBuffer.begin(), floatTo8BitUInt);
 
     auto const endTime = std::chrono::high_resolution_clock::now();
 
@@ -234,7 +246,8 @@ int main() {
         output << "P6\n";
         output << IMAGE_WIDTH << ' ' << IMAGE_HEIGHT << '\n';
         output << "255\n";
-        static_assert(sizeof(Pixel) == 3 && alignof(Pixel) == 1);
-        output.write(reinterpret_cast<char const*>(imageBuffer.data()), imageBuffer.size() * sizeof(Pixel));
+        using PixelType = decltype(imageBuffer)::value_type;
+        static_assert(sizeof(PixelType) == 3 && alignof(PixelType) == 1);
+        output.write(reinterpret_cast<char const*>(imageBuffer.data()), imageBuffer.size() * sizeof(PixelType));
     }
 }

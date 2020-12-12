@@ -43,7 +43,7 @@ public:
                 break;
             }
         }
-        stream << value << UNITS[i];
+        stream << value << UNITS.at(i);
         return stream;
     }
 

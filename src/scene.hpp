@@ -40,4 +40,5 @@ struct Scene {
     InstantiatedMeshes instantiatedMeshes;
     std::vector<PreprocessedTri> preprocessedTris;
     std::vector<IndexRange> preprocessedTriRanges;
+    std::vector<PreprocessedMaterial> preprocessedMaterials;
 };

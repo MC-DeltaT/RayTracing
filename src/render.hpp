@@ -23,13 +23,13 @@
 
 
 struct RayTraceData {
-    Span<glm::vec3 const> vertexNormals;            // Vertex normals for instantiated meshes.
-    Span<MeshTri const> tris;                       // Tris for base meshes (not instantiated meshes).
-    Span<PreprocessedTri const> preprocessedTris;   // Preprocessed tris for instantiated meshes.
-    Span<IndexRange const> vertexRanges;            // Maps from model index to range of vertices.
-    PermutedSpan<IndexRange const> triRanges;       // Maps from model index to range of tris.
-    Span<IndexRange const> preprocessedTriRanges;   // Maps from model index to range of preprocessed tris.
-    PermutedSpan<Material const> materials;         // Maps from model index to mesh material.
+    Span<glm::vec3 const> vertexNormals;                    // Vertex normals for instantiated meshes.
+    Span<MeshTri const> tris;                               // Tris for base meshes (not instantiated meshes).
+    Span<PreprocessedTri const> preprocessedTris;           // Preprocessed tris for instantiated meshes.
+    Span<IndexRange const> vertexRanges;                    // Maps from model index to range of vertices.
+    PermutedSpan<IndexRange const> triRanges;               // Maps from model index to range of tris.
+    Span<IndexRange const> preprocessedTriRanges;           // Maps from model index to range of preprocessed tris.
+    PermutedSpan<PreprocessedMaterial const> materials;     // Maps from model index to preprocessed mesh material.
 };
 
 
@@ -42,10 +42,10 @@ struct RenderData {
 };
 
 
-constexpr inline static unsigned PIXEL_SAMPLE_RATE = 8;
+constexpr inline static unsigned PIXEL_SAMPLE_RATE = 1024;
 constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
 constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
-constexpr inline static unsigned RAY_BOUNCE_SAMPLES = 16;
+constexpr inline static unsigned RAY_SAMPLES_PER_BOUNCE = 2;
 
 
 inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
@@ -76,39 +76,27 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
     assert(isUnitVector(outgoing));
     auto const nDotO = std::max(glm::dot(normal, outgoing), 0.0f);
 
-    assert(material.roughness > 0.0f);
-    auto const roughness4 = iPow<4>(material.roughness);
-    auto const ndfAlphaSq = roughness4;
-    auto const geometryAlphaSq = roughness4 / 4.0f;
-
-    assert(isNormalised(material.metalness));
-    assert(isNormalised(material.colour.r) && isNormalised(material.colour.g) && isNormalised(material.colour.b));
-    auto const oneMinusMetalness = 1.0f - material.metalness;
-    auto const f0 = oneMinusMetalness * glm::vec3{0.04f} + material.metalness * material.colour;
-    auto const oneMinusF0 = 1.0f - f0;
-
-    auto const adjustedColour = oneMinusMetalness * material.colour;
-
     // GGX microfacet distribution function.
-    auto const ndf = [ndfAlphaSq](float nDotH) {
+    auto const ndf = [&material](float nDotH) {
         if (nDotH <= 0.0f) {
             return 0.0f;
         }
         else {
             auto const nDotHSq = square(nDotH);
-            return ndfAlphaSq / (glm::pi<float>() * square(nDotHSq) * square(ndfAlphaSq + (1.0f - nDotHSq) / nDotHSq));
+            return material.ndfAlphaSq /
+                (glm::pi<float>() * square(nDotHSq) * square(material.ndfAlphaSq + (1.0f - nDotHSq) / nDotHSq));
         }
     };
 
     // GGX geometry function + Smith's method.
-    auto const geometry = [geometryAlphaSq](float nDotI, float nDotO, float hDotI, float hDotO) {
-        auto const partial = [geometryAlphaSq](float nDotR, float hDotR) {
+    auto const geometry = [&material](float nDotI, float nDotO, float hDotI, float hDotO) {
+        auto const partial = [&material](float nDotR, float hDotR) {
             if (hDotR < 0.0f != nDotR < 0.0f) {
                 return 0.0f;
             }
             else {
                 auto const nDotRSq = square(nDotR);
-                return 2.0f / (1.0f + std::sqrt(1.0f + geometryAlphaSq * (1.0f - nDotRSq) / nDotRSq));
+                return 2.0f / (1.0f + std::sqrt(1.0f + material.geometryAlphaSq * (1.0f - nDotRSq) / nDotRSq));
             }
         };
 
@@ -116,28 +104,31 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
     };
 
     // Fresnel-Schlick equation.
-    auto const fresnel = [&f0, &oneMinusF0](float hDotO) {
-        return f0 + oneMinusF0 * iPow<5>(1.0f - hDotO);
+    auto const fresnel = [&material](float hDotO) {
+        return material.f0 + material.oneMinusF0 * iPow(1.0f - hDotO, 5);
     };
 
     // Cook-Torrance BRDF for importance-sampled ray bounce.
-    auto const brdf = [&geometry, &fresnel, &outgoing, &normal, nDotO, &adjustedColour]
+    auto const brdf = [&geometry, &fresnel, &outgoing, &normal, nDotO, &material]
             (float nDotI, float nDotH, float hDotI, float hDotO) {
         auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
         auto const specularF = fresnel(hDotO);
         auto const specular = specularG * specularF * hDotI / nDotH;
-        auto const diffuse = (1.0f - specularF) * nDotI * adjustedColour;
+        auto const diffuse = (1.0f - specularF) * nDotI * material.adjustedColour;
         return diffuse + specular;
     };
 
     glm::vec3 reflected{0.0f, 0.0f, 0.0f};
+    // Take more samples as ray bounces further to try to represent surfaces uniformly even after several bounces
+    // (the probability of a specific ray being selected decreases as more bounces occur).
+    auto const samples = iPow(RAY_SAMPLES_PER_BOUNCE, bounce + 1);
     {
         auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
-        for (unsigned i = 0; i < RAY_BOUNCE_SAMPLES; ++i) {
+        for (unsigned i = 0; i < samples; ++i) {
             // Sample incident rays according to GGX distribution.
             auto const thetaParam = randomEngine.unitFloat();
-            auto const cosThetaSq = 1.0f / (1.0f + ndfAlphaSq * thetaParam / (1.0f - thetaParam));
+            auto const cosThetaSq = 1.0f / (1.0f + material.ndfAlphaSq * thetaParam / (1.0f - thetaParam));
             auto const cosTheta = std::sqrt(cosThetaSq);
             auto const sinTheta = std::sqrt(1.0f - cosThetaSq);
             auto const phi = randomEngine.angle();
@@ -159,7 +150,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
             }
         }
     }
-    reflected /= RAY_BOUNCE_SAMPLES;
+    reflected /= samples;
 
     // TODO? light transmission
 

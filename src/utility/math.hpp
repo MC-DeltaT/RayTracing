@@ -14,10 +14,10 @@ constexpr T square(T val) {
 }
 
 
-template<unsigned Power, typename T>
-constexpr T iPow(T val) {
+template<typename T>
+constexpr T iPow(T val, unsigned power) {
     T result = 1;
-    for (unsigned i = 0; i < Power; ++i) {
+    for (unsigned i = 0; i < power; ++i) {
         result *= val;
     }
     return val;

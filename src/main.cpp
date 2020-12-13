@@ -113,8 +113,8 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 
 
 int main() {
-    constexpr unsigned IMAGE_WIDTH = 500;
-    constexpr unsigned IMAGE_HEIGHT = 300;
+    constexpr unsigned IMAGE_WIDTH = 1920;
+    constexpr unsigned IMAGE_HEIGHT = 1080;
 
     std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<glm::vec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
@@ -129,7 +129,7 @@ int main() {
         {plane(), cube()},   // Meshes
         {   // Materials
             {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
-            {{1.0f, 1.0f, 1.0f}, 0.0001f, 1.0f, {0.0f, 0.0f, 0.0f}}     // Mirror
+            {{1.0f, 1.0f, 1.0f}, 0.00001f, 1.0f, {0.0f, 0.0f, 0.0f}}    // Mirror
         },
         {   // Models
             {   // Mesh instance transforms
@@ -183,6 +183,9 @@ int main() {
         PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
         scene.preprocessedTris, scene.preprocessedTriRanges);
 
+    scene.preprocessedMaterials.resize(scene.materials.size());
+    std::transform(scene.materials.cbegin(), scene.materials.cend(), scene.preprocessedMaterials.begin(), preprocessMaterial);
+
     auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.down(),
         scene.camera.right(), scene.camera.fov, IMAGE_WIDTH, IMAGE_HEIGHT);
 
@@ -195,7 +198,7 @@ int main() {
             readOnlySpan(scene.instantiatedMeshes.vertexRanges),
             PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
             readOnlySpan(scene.preprocessedTriRanges),
-            PermutedSpan{readOnlySpan(scene.materials), readOnlySpan(scene.models.materials)}
+            PermutedSpan{readOnlySpan(scene.preprocessedMaterials), readOnlySpan(scene.models.materials)}
         }
     };
 

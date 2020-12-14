@@ -36,8 +36,14 @@ inline bool isUnitVector(glm::vec3 const& vec) {
 
 inline std::pair<glm::vec3, glm::vec3> orthonormalBasis(glm::vec3 const& vec) {
     assert(isUnitVector(vec));
-    glm::vec3 const tmp{vec.z, vec.x, vec.y};       // TODO: fix for if all components equal
-    auto const perpendicular1 = tmp - glm::dot(tmp, vec) * vec;
+    glm::vec3 tmp{0.56863665f, -0.77215318f, 0.28360506f};      // Arbitrary vector.
+    auto dot = glm::dot(tmp, vec);
+    // This branch will almost never be taken.
+    if (std::abs(1.0f - std::abs(dot)) < 1e-3f) {
+        tmp = {0.56863665f, 0.77215318f, 0.28360506f};
+        dot = glm::dot(tmp, vec);
+    }
+    auto const perpendicular1 = tmp - dot * vec;
     auto const perpendicular2 = glm::cross(vec, perpendicular1);
     return {perpendicular1, perpendicular2};
 }

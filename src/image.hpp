@@ -1,7 +1,9 @@
 #pragma once
 
+#include "utility/math.hpp"
 #include "utility/span.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>

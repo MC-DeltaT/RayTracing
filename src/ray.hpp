@@ -126,18 +126,3 @@ std::optional<RayMeshIntersection> rayNearestIntersection(Span<PreprocessedTri c
         return std::nullopt;
     }
 }
-
-
-template<SurfaceConsideration Surfaces>
-bool rayIntersectsAny(Span<PreprocessedTri const> tris, Span<IndexRange const> triRanges, Ray ray,
-        std::pair<float, float> paramBounds) {
-    for (auto const& triRange : triRanges) {
-        auto const meshTris = tris[triRange];
-        for (auto const& tri : meshTris) {
-            if (rayTriIntersection<Surfaces>(ray, tri, paramBounds)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}

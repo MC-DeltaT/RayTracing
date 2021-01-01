@@ -50,9 +50,9 @@ inline glm::u8vec3 floatTo8BitUInt(glm::vec3 const& pixel) {
 }
 
 
-inline glm::vec3 nanToBlack(glm::vec3 const& pixel) {
+inline glm::vec3 nanToRed(glm::vec3 const& pixel) {
     if (!std::isfinite(pixel.r) || !std::isfinite(pixel.g) || !std::isfinite(pixel.b)) {
-        return {0.0f, 0.0f, 0.0f};
+        return {1.0f, 0.0f, 0.0f};
     }
     else {
         return pixel;

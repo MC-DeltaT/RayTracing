@@ -1,3 +1,5 @@
+#include "bsp.hpp"
+#include "geometry.hpp"
 #include "image.hpp"
 #include "mesh.hpp"
 #include "render.hpp"
@@ -133,9 +135,9 @@ int main() {
         },
         {   // Models
             {   // Mesh instance transforms
-                {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {100.0f, 1.0f, 100.0f}},                     // Floor
-                {{0.0f, 0.0f, -6.0f}, glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 20.0f}},  // Mirror 1
-                {{-6.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {20.0f, 1.0f, 20.0f}}  // Mirror 2
+                {{2.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {16.0f, 1.0f, 16.0f}},                       // Floor
+                {{0.0f, 5.0f, -6.0f}, glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}},  // Mirror 1
+                {{-6.0f, 5.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}}  // Mirror 2
             },
             {   // Model mesh indices
                 0, 0, 0
@@ -174,6 +176,12 @@ int main() {
 
     auto const preprocessBeginTime = std::chrono::high_resolution_clock::now();
 
+    scene.preprocessedMaterials.resize(scene.materials.size());
+    std::transform(scene.materials.cbegin(), scene.materials.cend(), scene.preprocessedMaterials.begin(), preprocessMaterial);
+
+    auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.down(),
+        scene.camera.right(), scene.camera.fov, IMAGE_WIDTH, IMAGE_HEIGHT);
+
     instantiateMeshes(readOnlySpan(scene.meshes.vertexPositions), readOnlySpan(scene.meshes.vertexNormals),
         readOnlySpan(scene.meshes.vertexRanges), readOnlySpan(scene.models.meshTransforms),
         readOnlySpan(scene.models.meshes), scene.instantiatedMeshes);
@@ -183,33 +191,35 @@ int main() {
         PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
         scene.preprocessedTris, scene.preprocessedTriRanges);
 
-    scene.preprocessedMaterials.resize(scene.materials.size());
-    std::transform(scene.materials.cbegin(), scene.materials.cend(), scene.preprocessedMaterials.begin(), preprocessMaterial);
+    auto const meshBoundingBox = computeBoundingBox(readOnlySpan(scene.instantiatedMeshes.vertexPositions));
 
-    auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.down(),
-        scene.camera.right(), scene.camera.fov, IMAGE_WIDTH, IMAGE_HEIGHT);
+    BSPTree const bspTree{
+        readOnlySpan(scene.instantiatedMeshes.vertexPositions), readOnlySpan(scene.instantiatedMeshes.vertexRanges),
+        readOnlySpan(scene.meshes.tris),
+        PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
+        readOnlySpan(scene.preprocessedTris), readOnlySpan(scene.preprocessedTriRanges),
+        meshBoundingBox
+    };
 
+    auto const renderBeginTime = std::chrono::high_resolution_clock::now();
     RenderData const renderData{
         IMAGE_WIDTH, IMAGE_HEIGHT,
         scene.camera.position, pixelToRayTransform,
         {
-            readOnlySpan(scene.instantiatedMeshes.vertexNormals),
-            readOnlySpan(scene.meshes.tris), readOnlySpan(scene.preprocessedTris),
-            readOnlySpan(scene.instantiatedMeshes.vertexRanges),
+            bspTree,
+            readOnlySpan(scene.instantiatedMeshes.vertexNormals), readOnlySpan(scene.instantiatedMeshes.vertexRanges),
+            readOnlySpan(scene.meshes.tris),
             PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
-            readOnlySpan(scene.preprocessedTriRanges),
             PermutedSpan{readOnlySpan(scene.preprocessedMaterials), readOnlySpan(scene.models.materials)}
         }
     };
-
-    auto const renderBeginTime = std::chrono::high_resolution_clock::now();
     render(renderData, Span{renderBuffer});
 
     auto const postprocessBeginTime = std::chrono::high_resolution_clock::now();
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), reinhardToneMap);
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(),
         static_cast<glm::vec3(*)(glm::vec3 const&)>(linearToSRGB));
-    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), nanToBlack);
+    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), nanToRed);
     std::copy(renderBuffer.cbegin(), renderBuffer.cend(), filteredBuffer.begin());
     medianFilter<1>(Span{renderBuffer}, IMAGE_WIDTH, Span{filteredBuffer});
     std::transform(filteredBuffer.cbegin(), filteredBuffer.cend(), imageBuffer.begin(), floatTo8BitUInt);

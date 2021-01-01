@@ -1,8 +1,8 @@
 #pragma once
 
+#include "bsp.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
-#include "ray.hpp"
 #include "utility/index_iterator.hpp"
 #include "utility/math.hpp"
 #include "utility/misc.hpp"
@@ -23,12 +23,11 @@
 
 
 struct RayTraceData {
+    BSPTree const& bspTree;
     Span<glm::vec3 const> vertexNormals;                    // Vertex normals for instantiated meshes.
-    Span<MeshTri const> tris;                               // Tris for base meshes (not instantiated meshes).
-    Span<PreprocessedTri const> preprocessedTris;           // Preprocessed tris for instantiated meshes.
     Span<IndexRange const> vertexRanges;                    // Maps from model index to range of vertices.
+    Span<MeshTri const> tris;                               // Tris for base meshes (not instantiated meshes).
     PermutedSpan<IndexRange const> triRanges;               // Maps from model index to range of tris.
-    Span<IndexRange const> preprocessedTriRanges;           // Maps from model index to range of preprocessed tris.
     PermutedSpan<PreprocessedMaterial const> materials;     // Maps from model index to preprocessed mesh material.
 };
 
@@ -48,28 +47,28 @@ constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersect
 constexpr inline static unsigned RAY_SAMPLES_PER_BOUNCE = 2;
 
 
-inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
+inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
     if (bounce > RAY_BOUNCE_LIMIT) {
         return {0.0f, 0.0f, 0.0f};
     }
 
-    auto const intersection = rayNearestIntersection<SurfaceConsideration::FRONT_ONLY>(
-        data.preprocessedTris, data.preprocessedTriRanges, ray, {RAY_INTERSECTION_MIN_PARAM, INFINITY});
+    auto const intersection = data.bspTree.lineTriNearestIntersection<SurfaceConsideration::FRONT_ONLY>(
+        ray, RAY_INTERSECTION_MIN_PARAM);
     if (!intersection) {
         return {0.0f, 0.0f, 0.0f};
     }
 
-    auto const& vertexRange = data.vertexRanges[intersection->mesh];
+    auto const& vertexRange = data.vertexRanges[intersection->meshTriIndex.mesh];
     auto const vertexNormals = data.vertexNormals[vertexRange];
-    auto const& triRange = data.triRanges[intersection->mesh];
-    auto const& tri = data.tris[triRange][intersection->tri];
+    auto const& triRange = data.triRanges[intersection->meshTriIndex.mesh];
+    auto const& tri = data.tris[triRange][intersection->meshTriIndex.tri];
     auto const pointCoord2 = intersection->pointCoord2;
     auto const pointCoord3 = intersection->pointCoord3;
     auto const pointCoord1 = 1.0f - pointCoord2 - pointCoord3;
     auto const normal = vertexNormals[tri.i1] * pointCoord1 + vertexNormals[tri.i2] * pointCoord2
         + vertexNormals[tri.i3] * pointCoord3;
-    auto const& material = data.materials[intersection->mesh];
-    auto const point = ray.origin + intersection->rayParam * ray.direction;
+    auto const& material = data.materials[intersection->meshTriIndex.mesh];
+    auto const point = ray(intersection->t);
     auto const outgoing = -ray.direction;
 
     assert(isUnitVector(normal));
@@ -141,6 +140,8 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Ray const& ray, FastRNG& ran
             auto const incident = 2.0f * hDotO * halfway - outgoing;
             auto const nDotI = glm::dot(normal, incident);
 
+            // TODO: fix importance sampling weights
+
             if (nDotI > 0.0f) {
                 hDotO = std::max(hDotO, 0.0f);
                 auto const& hDotI = hDotO;
@@ -170,7 +171,7 @@ inline void render(RenderData const& data, Span<glm::vec3> image) {
             auto const sampleX = pixelX + randomEngine.unitFloat();
             auto const sampleY = pixelY + randomEngine.unitFloat();
             auto const rayDirection = glm::normalize(data.pixelToRayTransform * glm::vec3{sampleX, sampleY, 1.0f});
-            Ray const ray{data.cameraPosition, rayDirection};
+            Line const ray{data.cameraPosition, rayDirection};
             colour += rayTrace(data.rayTraceData, ray, randomEngine);
         }
         colour /= PIXEL_SAMPLE_RATE;

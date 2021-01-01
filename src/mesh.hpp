@@ -1,5 +1,6 @@
 #pragma once
 
+#include "geometry.hpp"
 #include "utility/misc.hpp"
 #include "utility/span.hpp"
 #include "utility/permuted_span.hpp"
@@ -24,6 +25,12 @@ struct MeshTri {
 };
 
 
+struct MeshTriIndex {
+    std::size_t mesh;
+    std::size_t tri;
+};
+
+
 struct MeshTransform {
     glm::vec3 position{0.0f, 0.0f, 0.0f};
     glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
@@ -44,14 +51,6 @@ struct InstantiatedMeshes {
     std::vector<glm::vec3> vertexPositions;
     std::vector<glm::vec3> vertexNormals;
     std::vector<IndexRange> vertexRanges;       // Maps from mesh instance index to range of vertices.
-};
-
-
-struct PreprocessedTri {
-    glm::vec3 v1;
-    glm::vec3 v1ToV2;
-    glm::vec3 v1ToV3;
-    glm::vec3 normal;
 };
 
 
@@ -104,14 +103,6 @@ inline void instantiateMeshes(Span<glm::vec3 const> vertexPositions, Span<glm::v
 }
 
 
-inline PreprocessedTri preprocessTri(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3) {
-    auto const v1ToV2 = v2 - v1;
-    auto const v1ToV3 = v3 - v1;
-    auto const normal = glm::cross(v1ToV2, v1ToV3);
-    return {v1, v1ToV2, v1ToV3, normal};
-}
-
-
 inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRange const> vertexRanges,
         Span<MeshTri const> tris, PermutedSpan<IndexRange const> triRanges, std::vector<PreprocessedTri>& resultTris,
         std::vector<IndexRange>& resultTriRanges) {
@@ -122,9 +113,7 @@ inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRang
     {
         std::size_t triCount = 0;
         for (std::size_t instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex) {
-            auto const& triRange = triRanges[instanceIndex];
-            auto const instanceTris = tris[triRange];
-            triCount += instanceTris.size();
+            triCount += triRanges[instanceIndex].size;
         }
         resultTris.resize(triCount);
     }
@@ -132,14 +121,13 @@ inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRang
     
     std::size_t trisOffset = 0;
     for (std::size_t instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex) {
-        auto const& vertexRange = vertexRanges[instanceIndex];
-        auto const instanceVertexPositions = vertexPositions[vertexRange];
-        auto const& triRange = triRanges[instanceIndex];
-        auto const instanceTris = tris[triRange];
+        auto const instanceVertexPositions = vertexPositions[vertexRanges[instanceIndex]];
+        auto const instanceTris = tris[triRanges[instanceIndex]];
         for (std::size_t i = 0; i < instanceTris.size(); ++i) {
-            auto const& tri = instanceTris[i];
-            auto const preprocessedTri = preprocessTri(instanceVertexPositions[tri.i1], instanceVertexPositions[tri.i2],
-                    instanceVertexPositions[tri.i3]);
+            auto const& meshTri = instanceTris[i];
+            Tri const tri{instanceVertexPositions[meshTri.i1], instanceVertexPositions[meshTri.i2],
+                instanceVertexPositions[meshTri.i3]};
+            auto const preprocessedTri = preprocessTri(tri);
             resultTris[trisOffset + i] = preprocessedTri;
         }
         resultTriRanges[instanceIndex] = {trisOffset, instanceTris.size()};

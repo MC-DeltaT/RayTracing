@@ -1,9 +1,9 @@
 #pragma once
 
 #include "camera.hpp"
+#include "geometry.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
-#include "ray.hpp"
 #include "utility/misc.hpp"
 
 #include <cstddef>

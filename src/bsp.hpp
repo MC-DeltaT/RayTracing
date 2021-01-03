@@ -38,21 +38,6 @@ public:
             _inodes.reserve(approxInodes);
         }
         _root = _createNode(vertexPositions, vertexRanges, tris, triRanges, _inodes, _leaves, box);
-
-        // Inodes get inserted in reverse order of traversal.
-        // We reverse the order here so traversal is better for the cache.
-        auto const inodeCount = _inodes.size();
-        auto const reverseNodeIndex = [inodeCount](Node& node) {
-            if (!node.isLeaf) {
-                node.index = inodeCount - node.index - 1;
-            }
-        };
-        reverseNodeIndex(_root);
-        std::reverse(_inodes.begin(), _inodes.end());
-        for (auto& node : _inodes) {
-            reverseNodeIndex(node.negativeChild);
-            reverseNodeIndex(node.positiveChild);
-        };
     }
 
     template<SurfaceConsideration Surfaces>
@@ -219,11 +204,13 @@ private:
             }
         }
         unsigned char nextDivisionAxis = (divisionAxis + 1) % 3;
-        inodes.push_back({
-            divisionAxis,
-            _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, negativeSubbox, nextDivisionAxis),
-            _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, positiveSubbox, nextDivisionAxis)
-        });
-        return {box, false, inodes.size() - 1};
+        auto const index = inodes.size();
+        // Insert inode before recursing so they're in traversal order.
+        inodes.push_back({divisionAxis, {}, {}});
+        inodes[index].negativeChild =
+            _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, negativeSubbox, nextDivisionAxis);
+        inodes[index].positiveChild =
+            _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, positiveSubbox, nextDivisionAxis);
+        return {box, false, index};
     }
 };

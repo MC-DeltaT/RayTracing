@@ -76,24 +76,6 @@ inline bool inBox(glm::vec3 const& point, BoundingBox const& box) {
 }
 
 
-inline bool inBoxXY(glm::vec3 const& point, BoundingBox const& box) {
-    return point.x >= box.min.x && point.x <= box.max.x
-        && point.y >= box.min.y && point.y <= box.max.y;
-}
-
-
-inline bool inBoxXZ(glm::vec3 const& point, BoundingBox const& box) {
-    return point.x >= box.min.x && point.x <= box.max.x
-        && point.z >= box.min.z && point.z <= box.max.z;
-}
-
-
-inline bool inBoxYZ(glm::vec3 const& point, BoundingBox const& box) {
-    return point.y >= box.min.y && point.y <= box.max.y
-        && point.z >= box.min.z && point.z <= box.max.z;
-}
-
-
 inline BoundingBox computeBoundingBox(Span<glm::vec3 const> points) {
     BoundingBox box{{INFINITY, INFINITY, INFINITY}, {-INFINITY, -INFINITY, -INFINITY}};
     for (auto const& point : points) {
@@ -186,44 +168,62 @@ inline bool lineIntersectsBox(Line const& line, BoundingBox const& box) {
 
     // -X face
     if (auto const t = linePlaneIntersection(-line.direction.x, line.origin.x - box.min.x)) {
-        auto const point = line(*t);
-        if (inBoxYZ(point, box)) {
-            return true;
+        auto const y = line.origin.y + *t * line.direction.y;
+        if (y >= box.min.y && y <= box.max.y) {
+            auto const z = line.origin.z + *t * line.direction.z;
+            if (z >= box.min.z && z <= box.max.z) {
+                return true;
+            }
         }
     }
     // +X face
     if (auto const t = linePlaneIntersection(line.direction.x, box.max.x - line.origin.x)) {
-        auto const point = line(*t);
-        if (inBoxYZ(point, box)) {
-            return true;
+        auto const y = line.origin.y + *t * line.direction.y;
+        if (y >= box.min.y && y <= box.max.y) {
+            auto const z = line.origin.z + *t * line.direction.z;
+            if (z >= box.min.z && z <= box.max.z) {
+                return true;
+            }
         }
     }
     // -Y face
     if (auto const t = linePlaneIntersection(-line.direction.y, line.origin.y - box.min.y)) {
-        auto const point = line(*t);
-        if (inBoxXZ(point, box)) {
-            return true;
+        auto const x = line.origin.x + *t * line.direction.x;
+        if (x >= box.min.x && x <= box.max.x) {
+            auto const z = line.origin.z + *t * line.direction.z;
+            if (z >= box.min.z && z <= box.max.z) {
+                return true;
+            }
         }
     }
     // +Y face
     if (auto const t = linePlaneIntersection(line.direction.y, box.max.y - line.origin.y)) {
-        auto const point = line(*t);
-        if (inBoxXZ(point, box)) {
-            return true;
+        auto const x = line.origin.x + *t * line.direction.x;
+        if (x >= box.min.x && x <= box.max.x) {
+            auto const z = line.origin.z + *t * line.direction.z;
+            if (z >= box.min.z && z <= box.max.z) {
+                return true;
+            }
         }
     }
     // -Z face
     if (auto const t = linePlaneIntersection(-line.direction.z, line.origin.z - box.min.z)) {
-        auto const point = line(*t);
-        if (inBoxXY(point, box)) {
-            return true;
+        auto const x = line.origin.x + *t * line.direction.x;
+        if (x >= box.min.x && x <= box.max.x) {
+            auto const y = line.origin.y + *t * line.direction.y;
+            if (y >= box.min.y && y <= box.max.y) {
+                return true;
+            }
         }
     }
     // +Z face
     if (auto const t = linePlaneIntersection(line.direction.z, box.max.z - line.origin.z)) {
-        auto const point = line(*t);
-        if (inBoxXY(point, box)) {
-            return true;
+        auto const x = line.origin.x + *t * line.direction.x;
+        if (x >= box.min.x && x <= box.max.x) {
+            auto const y = line.origin.y + *t * line.direction.y;
+            if (y >= box.min.y && y <= box.max.y) {
+                return true;
+            }
         }
     }
     return false;

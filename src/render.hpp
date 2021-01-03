@@ -78,33 +78,33 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
 
     // GGX microfacet distribution function.
     auto const ndf = [&material](float nDotH) {
-        if (nDotH <= 0.0f) {
-            return 0.0f;
-        }
-        else {
-            auto const nDotHSq = square(nDotH);
-            return material.ndfAlphaSq /
-                (glm::pi<float>() * square(nDotHSq) * square(material.ndfAlphaSq + (1.0f - nDotHSq) / nDotHSq));
-        }
+        assert(nDotH > 0.0f);
+        auto const nDotHSq = square(nDotH);
+        auto const tanThetaSq = (1.0f - nDotHSq) / nDotHSq;
+        return material.ndfAlphaSq / (glm::pi<float>() * square(nDotHSq) * square(material.ndfAlphaSq + tanThetaSq));
     };
 
     // GGX geometry function + Smith's method.
     auto const geometry = [&material](float nDotI, float nDotO, float hDotI, float hDotO) {
-        auto const partial = [&material](float nDotR, float hDotR) {
-            if ((nDotR > 0.0f && hDotR > 0.0f) || (nDotR < 0.0f && hDotR < 0.0f)) {
-                auto const nDotRSq = square(nDotR);
-                return 2.0f / (1.0f + std::sqrt(1.0f + material.geometryAlphaSq * (1.0f - nDotRSq) / nDotRSq));
-            }
-            else {
-                return 0.0f;
-            }
+        auto const partial = [&material](float nDotR) {
+            auto const nDotRSq = square(nDotR);
+            return 2.0f / (1.0f + std::sqrt(1.0f + material.geometryAlphaSq * (1.0f - nDotRSq) / nDotRSq));
         };
 
-        return partial(nDotI, hDotI) * partial(nDotO, hDotO);
+        assert(nDotI > 0.0f && nDotO >= 0.0f && hDotI > 0.0f && hDotO == hDotI);
+        if (nDotO > 0.0f) {
+            return partial(nDotI) * partial(nDotO);
+        }
+        else {
+            return 0.0f;
+        }
     };
 
     // Fresnel-Schlick equation.
     auto const fresnel = [&material](float hDotO) {
+        assert(hDotO >= 0.0f);
+        // Sometimes hDotO is very slightly > 1 due to FP error, which technically invalidates this formula.
+        // But this error becomes extremely small when raised to the 5th power, so it doesn't have much effect.
         return material.f0 + material.oneMinusF0 * iPow(1.0f - hDotO, 5);
     };
 
@@ -117,7 +117,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
     glm::vec3 reflected{0.0f, 0.0f, 0.0f};
     for (unsigned i = 0; i < samples; ++i) {
         // Sample incident rays according to GGX distribution.
-        auto const thetaParam = randomEngine.unitFloat();
+        auto const thetaParam = randomEngine.unitFloatOpen();
         auto const cosThetaSq = 1.0f / (1.0f + material.ndfAlphaSq * thetaParam / (1.0f - thetaParam));
         auto const cosTheta = std::sqrt(cosThetaSq);
         auto const sinTheta = std::sqrt(1.0f - cosThetaSq);
@@ -167,8 +167,8 @@ inline void render(RenderData const& data, Span<glm::vec3> image) {
         auto& randomEngine = ::randomEngine;    // Access random engine here to force static initialisation.
         glm::vec3 colour{0.0f, 0.0f, 0.0f};
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
-            auto const sampleX = pixelX + randomEngine.unitFloat();
-            auto const sampleY = pixelY + randomEngine.unitFloat();
+            auto const sampleX = pixelX + randomEngine.unitFloatOpen();
+            auto const sampleY = pixelY + randomEngine.unitFloatOpen();
             auto const rayDirection = glm::normalize(data.pixelToRayTransform * glm::vec3{sampleX, sampleY, 1.0f});
             Line const ray{data.cameraPosition, rayDirection};
             colour += rayTrace(data.rayTraceData, ray, randomEngine);

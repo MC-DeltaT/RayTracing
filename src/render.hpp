@@ -15,7 +15,6 @@
 #include <cmath>
 #include <execution>
 
-#include <glm/common.hpp>
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/mat3x3.hpp>
@@ -41,10 +40,9 @@ struct RenderData {
 };
 
 
-constexpr inline static unsigned PIXEL_SAMPLE_RATE = 1024;
-constexpr inline static unsigned RAY_BOUNCE_LIMIT = 3;
-constexpr inline static float RAY_INTERSECTION_MIN_PARAM = 1e-3f;   // Intersections with line param < this are discarded.
-constexpr inline static unsigned RAY_SAMPLES_PER_BOUNCE = 2;
+constexpr inline static unsigned PIXEL_SAMPLE_RATE = 2048;
+constexpr inline static unsigned RAY_BOUNCE_LIMIT = 4;
+constexpr inline static float RAY_INTERSECTION_T_MIN = 1e-3f;   // Intersections with line param < this are discarded.
 
 
 inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
@@ -53,7 +51,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
     }
 
     auto const intersection = data.bspTree.lineTriNearestIntersection<SurfaceConsideration::FRONT_ONLY>(
-        ray, RAY_INTERSECTION_MIN_PARAM);
+        ray, RAY_INTERSECTION_T_MIN);
     if (!intersection) {
         return {0.0f, 0.0f, 0.0f};
     }
@@ -70,6 +68,9 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
     auto const& material = data.materials[intersection->meshTriIndex.mesh];
     auto const point = ray(intersection->t);
     auto const outgoing = -ray.direction;
+
+    // Lighting model based on this paper:
+    // B. Walter, S. R. Marschner, H. Li, and K. E. Torrance, "Microfacet models for refraction through rough surfaces", 2007.
 
     assert(isUnitVector(normal));
     assert(isUnitVector(outgoing));
@@ -90,12 +91,12 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
     // GGX geometry function + Smith's method.
     auto const geometry = [&material](float nDotI, float nDotO, float hDotI, float hDotO) {
         auto const partial = [&material](float nDotR, float hDotR) {
-            if (hDotR < 0.0f != nDotR < 0.0f) {
-                return 0.0f;
-            }
-            else {
+            if ((nDotR > 0.0f && hDotR > 0.0f) || (nDotR < 0.0f && hDotR < 0.0f)) {
                 auto const nDotRSq = square(nDotR);
                 return 2.0f / (1.0f + std::sqrt(1.0f + material.geometryAlphaSq * (1.0f - nDotRSq) / nDotRSq));
+            }
+            else {
+                return 0.0f;
             }
         };
 
@@ -107,48 +108,46 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
         return material.f0 + material.oneMinusF0 * iPow(1.0f - hDotO, 5);
     };
 
-    // Cook-Torrance BRDF for importance-sampled ray bounce.
-    auto const brdf = [&geometry, &fresnel, &outgoing, &normal, nDotO, &material]
-            (float nDotI, float nDotH, float hDotI, float hDotO) {
-        auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
-        auto const specularF = fresnel(hDotO);
-        auto const specular = specularG * specularF * hDotI / nDotH;
-        auto const diffuse = (1.0f - specularF) * nDotI * material.adjustedColour;
-        return diffuse + specular;
-    };
-
-    glm::vec3 reflected{0.0f, 0.0f, 0.0f};
     // Take more samples as ray bounces further to try to represent surfaces uniformly even after several bounces
     // (the probability of a specific ray being selected decreases as more bounces occur).
-    auto const samples = iPow(RAY_SAMPLES_PER_BOUNCE, bounce + 1);
-    {
-        auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
+    auto const samples = bounce + 1;
 
-        for (unsigned i = 0; i < samples; ++i) {
-            // Sample incident rays according to GGX distribution.
-            auto const thetaParam = randomEngine.unitFloat();
-            auto const cosThetaSq = 1.0f / (1.0f + material.ndfAlphaSq * thetaParam / (1.0f - thetaParam));
-            auto const cosTheta = std::sqrt(cosThetaSq);
-            auto const sinTheta = std::sqrt(1.0f - cosThetaSq);
-            auto const phi = randomEngine.angle();
-            auto const sinPhi = std::sin(phi);
-            auto const cosPhi = std::cos(phi);
+    auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
+
+    glm::vec3 reflected{0.0f, 0.0f, 0.0f};
+    for (unsigned i = 0; i < samples; ++i) {
+        // Sample incident rays according to GGX distribution.
+        auto const thetaParam = randomEngine.unitFloat();
+        auto const cosThetaSq = 1.0f / (1.0f + material.ndfAlphaSq * thetaParam / (1.0f - thetaParam));
+        auto const cosTheta = std::sqrt(cosThetaSq);
+        auto const sinTheta = std::sqrt(1.0f - cosThetaSq);
+        auto const phi = randomEngine.angle();
+        auto const sinPhi = std::sin(phi);
+        auto const cosPhi = std::cos(phi);
+        
+        auto const halfway = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
+
+        auto hDotO = glm::dot(halfway, outgoing);
+        auto const incident = 2.0f * hDotO * halfway - outgoing;
+        assert(isUnitVector(incident));
+        auto const nDotI = glm::dot(normal, incident);
+
+        if (nDotI > 0.0f) {
+            auto const incidentLight = rayTrace(data, {point, incident}, randomEngine, bounce + 1);
+
+            // Cook-Torrance BRDF.
+            assert(hDotO > 0.0f);
+            auto const& nDotH = cosTheta;
+            auto const& hDotI = hDotO;
+            auto const specularD = ndf(nDotH);
+            auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
+            auto const specularF = fresnel(hDotO);
+            // ray probability = specularD * nDotH / (4 * hDotO)
+            auto const specular = specularG * specularF * hDotO / (nDotO * nDotH);
+            auto const diffuse = 4.0f * (1.0f - specularF) * material.adjustedColour * nDotI * hDotO / (specularD * nDotH);
+            auto const weight = diffuse + specular;
             
-            auto const halfway = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
-
-            auto hDotO = glm::dot(halfway, outgoing);
-            auto const incident = 2.0f * hDotO * halfway - outgoing;
-            auto const nDotI = glm::dot(normal, incident);
-
-            // TODO: fix importance sampling weights
-
-            if (nDotI > 0.0f) {
-                hDotO = std::max(hDotO, 0.0f);
-                auto const& hDotI = hDotO;
-                auto const weight = brdf(nDotI, cosTheta, hDotI, hDotO);
-                auto const incidentLight = rayTrace(data, {point, incident}, randomEngine, bounce + 1);
-                reflected += weight * incidentLight;
-            }
+            reflected += incidentLight * weight;
         }
     }
     reflected /= samples;

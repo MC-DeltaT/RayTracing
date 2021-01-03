@@ -124,14 +124,12 @@ int main() {
 
     Scene scene{
         {   // Camera
-            {9.0f, 8.0f, 16.0f},
-            glm::vec3{0.3f, -2.6f, 0.0f},
-            glm::radians(45.0f)
+            {9.0f, 8.0f, 16.0f}, glm::vec3{0.3f, -2.6f, 0.0f}, glm::radians(45.0f)
         },
         {plane(), cube()},   // Meshes
         {   // Materials
-            {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Grey
-            {{1.0f, 1.0f, 1.0f}, 0.00001f, 1.0f, {0.0f, 0.0f, 0.0f}}    // Mirror
+            {{0.25f, 0.25f, 0.25f}, 0.9f, 0.0f, {0.0f, 0.0f, 0.0f}},    // Floor
+            {{1.0f, 1.0f, 1.0f}, 0.04f, 1.0f, {0.0f, 0.0f, 0.0f}}       // Mirror
         },
         {   // Models
             {   // Mesh instance transforms

@@ -20,7 +20,7 @@ constexpr T iPow(T val, unsigned power) {
     for (unsigned i = 0; i < power; ++i) {
         result *= val;
     }
-    return val;
+    return result;
 }
 
 
@@ -36,14 +36,15 @@ inline bool isUnitVector(glm::vec3 const& vec) {
 
 inline std::pair<glm::vec3, glm::vec3> orthonormalBasis(glm::vec3 const& vec) {
     assert(isUnitVector(vec));
-    glm::vec3 tmp{0.56863665f, -0.77215318f, 0.28360506f};      // Arbitrary vector.
+    glm::vec3 tmp{0.56863665f, -0.77215318f, 0.28360506f};      // Arbitrary unit vector.
     auto dot = glm::dot(tmp, vec);
     // This branch will almost never be taken.
     if (std::abs(1.0f - std::abs(dot)) < 1e-3f) {
+        // If original dot product is 0, then dot product with this vector cannot be 0.
         tmp = {0.56863665f, 0.77215318f, 0.28360506f};
         dot = glm::dot(tmp, vec);
     }
-    auto const perpendicular1 = tmp - dot * vec;
-    auto const perpendicular2 = glm::cross(vec, perpendicular1);
+    auto const perpendicular1 = glm::normalize(tmp - dot * vec);
+    auto const perpendicular2 = glm::normalize(glm::cross(vec, perpendicular1));
     return {perpendicular1, perpendicular2};
 }

@@ -4,6 +4,7 @@
 
 #include <cassert>
 
+#include <glm/gtc/constants.hpp>
 #include <glm/vec3.hpp>
 
 
@@ -36,7 +37,7 @@ inline PreprocessedMaterial preprocessMaterial(Material const& material) {
     auto const oneMinusMetalness = 1.0f - material.metalness;
     auto const f0 = oneMinusMetalness * glm::vec3{0.04f} + material.metalness * material.colour;
     auto const oneMinusF0 = 1.0f - f0;
-    auto const adjustedColour = oneMinusMetalness * material.colour;
+    auto const adjustedColour = oneMinusMetalness * material.colour / glm::pi<float>();
 
     return {ndfAlphaSq, geometryAlphaSq, f0, oneMinusF0, adjustedColour, material.emission};
 }

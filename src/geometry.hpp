@@ -119,6 +119,7 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
     }
     det = -det;
     auto const invDet = 1.0f / det;
+    // det and invDet guaranteed to be > 0
     auto const AO = line.origin - tri.v1;
     auto const t = glm::dot(AO, tri.normal) * invDet;
     if (t > tMax || t < tMin) {
@@ -128,8 +129,8 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
     auto u = glm::dot(tri.v1ToV3, DAO);
     auto v = glm::dot(tri.v1ToV2, DAO);
     if (u >= 0.0f && v <= 0.0f && u - v <= det) {
-        u *= -invDet;
-        v *= invDet;
+        u *= invDet;
+        v *= -invDet;
         return {{t, u, v}};
     }
     else {
@@ -146,8 +147,7 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
     if (std::abs(det) < 1e-6f) {
         return std::nullopt;
     }
-    det = -det;
-    auto const invDet = 1.0f / det;
+    auto const invDet = -1.0f / det;
     auto const AO  = line.origin - tri.v1;
     auto const t = glm::dot(AO, tri.normal) * invDet;
     if (t > tMax || t < tMin) {
@@ -155,8 +155,9 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
     }
     auto const DAO = glm::cross(AO, line.direction);
     auto const u = glm::dot(tri.v1ToV3, DAO) * invDet;
-    auto const v = -glm::dot(tri.v1ToV2, DAO) * invDet;
-    if (u >= 0.0f && v >= 0.0f && u + v <= 1.0f) {
+    auto v = glm::dot(tri.v1ToV2, DAO) * invDet;
+    if (u >= 0.0f && v <= 0.0f && u - v <= 1.0f) {
+        v = -v;
         return {{t, u, v}};
     }
     else {
@@ -230,7 +231,7 @@ inline bool lineIntersectsBox(Line const& line, BoundingBox const& box) {
 
 
 inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
-    // Tomas Akenine-Moller, "Fast 3D Triangle-Box Overlap Testing", 2001.
+    // T. Akenine-Moller, "Fast 3D triangle-box overlap testing", 2001.
 
     auto const intervalsDisjoint = [](float i1Min, float i1Max, float i2Min, float i2Max) {
         return i1Max < i2Min || i2Max < i1Min;

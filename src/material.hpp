@@ -1,28 +1,29 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "utility/math.hpp"
 
 #include <cassert>
 
 #include <glm/gtc/constants.hpp>
-#include <glm/vec3.hpp>
+
 
 
 struct Material {
-    glm::vec3 colour;
+    vec3 colour;
     float roughness;        // In range (0, 1].
     float metalness;        // In range [0, 1].
-    glm::vec3 emission;     // Colour that is inherently emitted.
+    vec3 emission;     // Colour that is inherently emitted.
 };
 
 
 struct PreprocessedMaterial {
     float ndfAlphaSq;
     float geometryAlphaSq;
-    glm::vec3 f0;
-    glm::vec3 oneMinusF0;
-    glm::vec3 adjustedColour;
-    glm::vec3 emission;
+    vec3 f0;
+    vec3 oneMinusF0;
+    vec3 adjustedColour;
+    vec3 emission;
 };
 
 
@@ -35,7 +36,7 @@ inline PreprocessedMaterial preprocessMaterial(Material const& material) {
     assert(isNormalised(material.metalness));
     assert(isNormalised(material.colour.r) && isNormalised(material.colour.g) && isNormalised(material.colour.b));
     auto const oneMinusMetalness = 1.0f - material.metalness;
-    auto const f0 = oneMinusMetalness * glm::vec3{0.04f} + material.metalness * material.colour;
+    auto const f0 = oneMinusMetalness * vec3{0.04f} + material.metalness * material.colour;
     auto const oneMinusF0 = 1.0f - f0;
     auto const adjustedColour = oneMinusMetalness * material.colour / glm::pi<float>();
 

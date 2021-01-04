@@ -1,12 +1,14 @@
+#include "basic_types.hpp"
 #include "bsp.hpp"
 #include "geometry.hpp"
 #include "image.hpp"
 #include "mesh.hpp"
 #include "render.hpp"
 #include "scene.hpp"
-#include "utility/misc.hpp"
+#include "utility/numeric.hpp"
 #include "utility/permuted_span.hpp"
 #include "utility/span.hpp"
+#include "utility/time.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -23,14 +25,19 @@
 static std::vector<MeshTri> quadMeshTris(unsigned quadCount) {
     std::vector<MeshTri> tris;
     for (unsigned i = 0; i < quadCount; ++i) {
-        tris.push_back({4 * i, 4 * i + 2, 4 * i + 1});
-        tris.push_back({4 * i + 1, 4 * i + 2, 4 * i + 3});
+        auto const fourI = 4 * i;
+        auto const v1 = intCast<VertexIndex>(fourI);
+        auto const v2 = intCast<VertexIndex>(fourI + 2);
+        auto const v3 = intCast<VertexIndex>(fourI + 1);
+        auto const v4 = intCast<VertexIndex>(fourI + 3);
+        tris.push_back({v1, v2, v3});
+        tris.push_back({v3, v2, v4});
     }
     return tris;
 }
 
 
-std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> plane() {
+std::tuple<std::vector<vec3>, std::vector<vec3>, std::vector<MeshTri>> plane() {
     return {
         {
             {-0.5f, 0.0f, -0.5f},   // Rear left
@@ -49,7 +56,7 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 }
 
 
-std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> cube() {
+std::tuple<std::vector<vec3>, std::vector<vec3>, std::vector<MeshTri>> cube() {
     return {
         {
             // Front
@@ -118,13 +125,13 @@ int main() {
     constexpr unsigned IMAGE_WIDTH = 1920;
     constexpr unsigned IMAGE_HEIGHT = 1080;
 
-    std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
-    std::vector<glm::vec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<vec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<glm::u8vec3> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
     Scene scene{
         {   // Camera
-            {9.0f, 8.0f, 16.0f}, glm::vec3{0.3f, -2.6f, 0.0f}, glm::radians(45.0f)
+            {9.0f, 8.0f, 16.0f}, vec3{0.3f, -2.6f, 0.0f}, glm::radians(45.0f)
         },
         {plane(), cube()},   // Meshes
         {   // Materials
@@ -134,8 +141,8 @@ int main() {
         {   // Models
             {   // Mesh instance transforms
                 {{2.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {16.0f, 1.0f, 16.0f}},                       // Floor
-                {{0.0f, 5.0f, -6.0f}, glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}},  // Mirror 1
-                {{-6.0f, 5.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}}  // Mirror 2
+                {{0.0f, 5.0f, -6.0f}, vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}},  // Mirror 1
+                {{-6.0f, 5.0f, 0.0f}, vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}}  // Mirror 2
             },
             {   // Model mesh indices
                 0, 0, 0
@@ -154,20 +161,20 @@ int main() {
     for (unsigned x = 0; x < CUBE_DIVISOR; ++x) {
         for (unsigned y = 0; y < CUBE_DIVISOR; ++y) {
             for (unsigned z = 0; z < CUBE_DIVISOR; ++z) {
-                auto const colour = srgbToLinear(glm::vec3{
+                auto const colour = srgbToLinear(vec3{
                     x / static_cast<float>(CUBE_DIVISOR - 1),
                     y / static_cast<float>(CUBE_DIVISOR - 1),
                     z / static_cast<float>(CUBE_DIVISOR - 1)
                 });
                 scene.materials.push_back({colour, 0.5f, 0.5f, colour});
-                glm::vec3 const position{
+                vec3 const position{
                     (x - (CUBE_DIVISOR - 1) / 2.0f) * CUBE_SPACING,
                     y * CUBE_SPACING + 0.5f,
                     (z - (CUBE_DIVISOR - 1) / 2.0f) * CUBE_SPACING
                 };
                 scene.models.meshTransforms.push_back({position});
                 scene.models.meshes.push_back(1);
-                scene.models.materials.push_back(scene.materials.size() - 1);
+                scene.models.materials.push_back(intCast<MaterialIndex>(scene.materials.size() - 1));
             }
         }
     }
@@ -216,10 +223,10 @@ int main() {
     auto const postprocessBeginTime = std::chrono::high_resolution_clock::now();
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), reinhardToneMap);
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(),
-        static_cast<glm::vec3(*)(glm::vec3 const&)>(linearToSRGB));
+        static_cast<vec3(*)(vec3 const&)>(linearToSRGB));
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), nanToRed);
     std::copy(renderBuffer.cbegin(), renderBuffer.cend(), filteredBuffer.begin());
-    medianFilter<1>(Span{renderBuffer}, IMAGE_WIDTH, Span{filteredBuffer});
+    medianFilter<1>(readOnlySpan(renderBuffer), IMAGE_WIDTH, Span{filteredBuffer});
     std::transform(filteredBuffer.cbegin(), filteredBuffer.cend(), imageBuffer.begin(), floatTo8BitUInt);
 
     auto const endTime = std::chrono::high_resolution_clock::now();

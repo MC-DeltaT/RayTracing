@@ -5,7 +5,7 @@
 #include <type_traits>
 
 
-template<typename T>
+template<typename T, typename IndexType>
 class PermutationIterator {
 public:
     using value_type = std::remove_cv_t<T>;
@@ -14,7 +14,7 @@ public:
     using difference_type = std::ptrdiff_t;
     using iterator_category = std::random_access_iterator_tag;
 
-    PermutationIterator(T* elementIterator, std::size_t const* indexIterator) :
+    PermutationIterator(T* elementIterator, IndexType const* indexIterator) :
         _elementIterator{elementIterator}, _indexIterator{indexIterator}
     {}
 
@@ -22,7 +22,7 @@ public:
         return _elementIterator;
     }
 
-    std::size_t const* indexIterator() const {
+    IndexType const* indexIterator() const {
         return _indexIterator;
     }
 
@@ -61,59 +61,62 @@ public:
 
 private:
     T* _elementIterator;
-    std::size_t const* _indexIterator;
+    IndexType const* _indexIterator;
 };
 
-template<typename T>
-bool operator==(PermutationIterator<T> const& lhs, PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+bool operator==(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() == rhs.indexIterator();
 }
 
-template<typename T>
-bool operator!=(PermutationIterator<T> const& lhs, PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+bool operator!=(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() != rhs.indexIterator();
 }
 
-template<typename T>
-bool operator<(PermutationIterator<T> const& lhs, PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+bool operator<(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() < rhs.indexIterator();
 }
 
-template<typename T>
-bool operator<=(PermutationIterator<T> const& lhs, PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+bool operator<=(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() <= rhs.indexIterator();
 }
 
-template<typename T>
-bool operator>(PermutationIterator<T> const& lhs, PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+bool operator>(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() > rhs.indexIterator();
 }
 
-template<typename T>
-bool operator>=(PermutationIterator<T> const& lhs, PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+bool operator>=(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() >= rhs.indexIterator();
 }
 
-template<typename T>
-PermutationIterator<T> operator+(PermutationIterator<T> it, typename PermutationIterator<T>::difference_type n) {
+template<typename T, typename IndexType>
+PermutationIterator<T, IndexType> operator+(PermutationIterator<T, IndexType> it,
+        typename PermutationIterator<T, IndexType>::difference_type n) {
     it += n;
     return it;
 }
 
-template<typename T>
-PermutationIterator<T> operator+(typename PermutationIterator<T>::difference_type n, PermutationIterator<T> it) {
+template<typename T, typename IndexType>
+PermutationIterator<T, IndexType> operator+(typename PermutationIterator<T, IndexType>::difference_type n,
+        PermutationIterator<T, IndexType> it) {
     it += n;
     return it;
 }
 
-template<typename T>
-PermutationIterator<T> operator-(PermutationIterator<T> it, typename PermutationIterator<T>::difference_type n) {
+template<typename T, typename IndexType>
+PermutationIterator<T, IndexType> operator-(PermutationIterator<T, IndexType> it,
+        typename PermutationIterator<T, IndexType>::difference_type n) {
     it -= n;
     return it;
 }
 
-template<typename T>
-typename PermutationIterator<T>::difference_type operator-(PermutationIterator<T> const& lhs,
-        PermutationIterator<T> const& rhs) {
+template<typename T, typename IndexType>
+typename PermutationIterator<T, IndexType>::difference_type operator-(PermutationIterator<T, IndexType> const& lhs,
+        PermutationIterator<T, IndexType> const& rhs) {
     return lhs.indexIterator() - rhs.indexIterator();
 }

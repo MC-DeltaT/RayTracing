@@ -1,6 +1,6 @@
 #pragma once
 
-#include "misc.hpp"
+#include "numeric.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -30,11 +30,6 @@ public:
         _data{std::data(container)}, _size{std::size(container)}
     {}
 
-    template<class Container>
-    Span(Container& container, IndexRange range) :
-        Span{Span{container}[range]}
-    {}
-
     template<typename U>
     Span(Span<U> const& other) :
         _data{other.data()}, _size{other.size()}
@@ -61,7 +56,8 @@ public:
         return _data[index];
     }
 
-    Span<T> operator[](IndexRange range) const {
+    template<typename IndexType, typename SizeType>
+    Span<T> operator[](IndexRange<IndexType, SizeType> const& range) const {
         assert(range.end() <= _size);
         return {_data + range.begin, range.size};
     }
@@ -73,9 +69,6 @@ private:
 
 template<class Container>
 Span(Container& container) -> Span<std::remove_pointer_t<decltype(std::data(container))>>;
-
-template<class Container>
-Span(Container& container, IndexRange const& range) -> Span<std::remove_pointer_t<decltype(std::data(container))>>;
 
 
 template<class Container>

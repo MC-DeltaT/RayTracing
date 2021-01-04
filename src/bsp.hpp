@@ -1,8 +1,9 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "geometry.hpp"
 #include "mesh.hpp"
-#include "utility/misc.hpp"
+#include "utility/numeric.hpp"
 #include "utility/permuted_span.hpp"
 #include "utility/span.hpp"
 
@@ -11,10 +12,9 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
-
-#include <glm/vec3.hpp>
 
 
 struct LineMeshIntersection : LineTriIntersection {
@@ -24,11 +24,11 @@ struct LineMeshIntersection : LineTriIntersection {
 
 class BSPTree {
 public:
-    BSPTree(Span<glm::vec3 const> vertexPositions, Span<IndexRange const> vertexRanges,
-            Span<MeshTri const> tris, PermutedSpan<IndexRange const> triRanges,
-            Span<PreprocessedTri const> preprocessedTris, Span<IndexRange const> preprocessedTriRanges,
+    BSPTree(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+            Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
+            Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box) :
-        _preprocessedTris{preprocessedTris}, _preprocessedTriRanges{preprocessedTriRanges}, _root{}, _inodes{}, _leaves{}
+        _root{}, _inodes{}, _leaves{}, _preprocessedTriRanges{preprocessedTriRanges}, _preprocessedTris{preprocessedTris}
     {
         {
             auto const approxLeaves = static_cast<std::size_t>(
@@ -43,17 +43,18 @@ public:
     template<SurfaceConsideration Surfaces>
     std::optional<LineMeshIntersection> lineTriNearestIntersection(Line const& line, float tMin) const {
         struct Traverser {
-            Span<PreprocessedTri const> preprocessedTris;
-            Span<IndexRange const> preprocessedTriRanges;
-            std::vector<INode> const& inodes;
-            std::vector<Leaf> const& leaves;
             Line const& line;
+            Span<INode const> inodes;
+            Span<Leaf const> leaves;
+            Span<TriRange const> preprocessedTriRanges;
+            Span<PreprocessedTri const> preprocessedTris;
             float tMin;
 
-            std::optional<LineMeshIntersection> operator()(BoundingBox const& box, Leaf const& leaf) const {
+            std::optional<LineMeshIntersection> visitLeaf(BoundingBox const& box, Leaf const& leaf) const {
                 LineMeshIntersection nearestIntersection{{INFINITY}};
                 bool hasIntersection = false;
-                for (unsigned i = 0; i < leaf.triCount; ++i) {
+                assert(leaf.triCount > 0);
+                for (unsigned i = 0; ;) {
                     auto const& meshTriIndex = leaf.tris[i];
                     auto const& triRange = preprocessedTriRanges[meshTriIndex.mesh];
                     auto const& tri = preprocessedTris[triRange][meshTriIndex.tri];
@@ -64,6 +65,10 @@ public:
                             hasIntersection = true;
                         }
                     }
+                    ++i;
+                    if (i >= leaf.triCount) {
+                        break;
+                    }
                 }
                 if (hasIntersection) {
                     return {nearestIntersection};
@@ -73,21 +78,20 @@ public:
                 }
             }
 
-            std::optional<LineMeshIntersection> operator()(Node const& node) const {
+            std::optional<LineMeshIntersection> visitNode(Node const& node) const {
                 if (lineIntersectsBox(line, node.box)) {
-                    if (node.isLeaf) {
-                        if (node.index > 0) {
-                            return (*this)(node.box, leaves[node.index - 1]);
-                        }
+                    if (node.index > 0) {
+                        return visitInode(inodes[node.index - 1]);
                     }
-                    else {
-                        return (*this)(inodes[node.index]);
+                    else if (node.index < 0) {
+                        return visitLeaf(node.box, leaves[-(node.index + 1)]);
                     }
+                    // Else empty leaf.
                 }
                 return std::nullopt;
             }
 
-            std::optional<LineMeshIntersection> operator()(INode const& inode) const {
+            std::optional<LineMeshIntersection> visitInode(INode const& inode) const {
                 float planeToLineOrigin = 0.0f;
                 assert(inode.divisionAxis < 3);
                 switch (inode.divisionAxis) {
@@ -104,63 +108,68 @@ public:
                 auto const positiveNear = planeToLineOrigin >= 0.0f;
 
                 auto const& nearChild = positiveNear ? inode.positiveChild : inode.negativeChild;
-                if (auto const intersection = (*this)(nearChild)) {
+                if (auto const intersection = visitNode(nearChild)) {
                     return intersection;
                 }
                 auto const& farChild = !positiveNear ? inode.positiveChild : inode.negativeChild;
-                return (*this)(farChild);
+                return visitNode(farChild);
             }
         };
 
-        return Traverser{_preprocessedTris, _preprocessedTriRanges, _inodes, _leaves, line, tMin}(_root);
+        return Traverser{
+            line, readOnlySpan(_inodes), readOnlySpan(_leaves), _preprocessedTriRanges, _preprocessedTris, tMin
+        }.visitNode(_root);
     }
 
 private:
     struct Node {
         BoundingBox box;
-        bool isLeaf;
-        std::size_t index;
+        std::int32_t index;     // index < 0: leaf at (-index - 1)
+                                // index = 0: empty leaf
+                                // index > 0: inode at (index - 1)
     };
 
     struct INode {
-        unsigned char divisionAxis;     // 0 (X), 1 (Y), 2 (Z)
         Node negativeChild;             // On side of -ve axis direction
         Node positiveChild;             // On side of +ve axis direction
+        std::uint8_t divisionAxis;      // 0 (X), 1 (Y), 2 (Z)
     };
 
     struct Leaf {
-        constexpr inline static unsigned char MAX_TRIS = 32;
+        constexpr inline static std::uint8_t MAX_TRIS = 32;
 
         std::array<MeshTriIndex, MAX_TRIS> tris;
-        unsigned char triCount;
+        std::uint8_t triCount;
     };
 
-    Span<PreprocessedTri const> _preprocessedTris;
-    Span<IndexRange const> _preprocessedTriRanges;
     Node _root;
     std::vector<INode> _inodes;
     std::vector<Leaf> _leaves;
+    Span<TriRange const> _preprocessedTriRanges;
+    Span<PreprocessedTri const> _preprocessedTris;
 
-    static Node _createNode(Span<glm::vec3 const> vertexPositions, Span<IndexRange const> vertexRanges,
-            Span<MeshTri const> tris, PermutedSpan<IndexRange const> triRanges, std::vector<INode>& inodes,
-            std::vector<Leaf>& leaves, BoundingBox const& box, unsigned char divisionAxis = 0) {
+    static Node _createNode(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+            Span<MeshTri const> tris, PermutedSpan<TriRange const, MaterialIndex> triRanges,
+            std::vector<INode>& inodes, std::vector<Leaf>& leaves, BoundingBox const& box,
+            std::uint8_t divisionAxis = 0) {
         assert(vertexRanges.size() == triRanges.size());
         assert(divisionAxis < 3);
 
         {
-            auto const instanceCount = vertexRanges.size();
+            auto const instanceCount = intCast<MeshIndex>(vertexRanges.size());
             bool subdivide = false;
             std::array<MeshTriIndex, Leaf::MAX_TRIS> trisInBox{};
-            unsigned char inBoxCount = 0;
-            for (std::size_t instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex) {
+            std::uint8_t inBoxCount = 0;
+            for (MeshIndex instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex) {
                 auto const instanceTris = tris[triRanges[instanceIndex]];
                 auto const instanceVertexPositions = vertexPositions[vertexRanges[instanceIndex]];
-                for (std::size_t triIndex = 0; triIndex < instanceTris.size(); ++triIndex) {
+                auto const triCount = intCast<TriIndex>(instanceTris.size());
+                for (TriIndex triIndex = 0; triIndex < triCount; ++triIndex) {
                     auto const& meshTri = instanceTris[triIndex];
-                    Tri tri{
-                        instanceVertexPositions[meshTri.i1],
-                        instanceVertexPositions[meshTri.i2],
-                        instanceVertexPositions[meshTri.i3]
+                    Tri const tri{
+                        instanceVertexPositions[meshTri.v1],
+                        instanceVertexPositions[meshTri.v2],
+                        instanceVertexPositions[meshTri.v3]
                     };
                     if (triIntersectsBox(tri, box)) {
                         if (inBoxCount >= Leaf::MAX_TRIS) {
@@ -174,10 +183,10 @@ private:
             }
             if (!subdivide) {
                 if (inBoxCount == 0) {
-                    return {box, true, 0};      // 0 node index = empty leaf
+                    return {box, 0};
                 }
                 leaves.push_back({trisInBox, inBoxCount});
-                return {box, true, leaves.size()};
+                return {box, -intCast<std::int32_t>(leaves.size())};
             }
         }
 
@@ -203,14 +212,14 @@ private:
                 break;
             }
         }
-        unsigned char nextDivisionAxis = (divisionAxis + 1) % 3;
+        std::uint8_t const nextDivisionAxis = (divisionAxis + 1) % 3;
         auto const index = inodes.size();
         // Insert inode before recursing so they're in traversal order.
-        inodes.push_back({divisionAxis, {}, {}});
+        inodes.push_back({{}, {}, divisionAxis});
         inodes[index].negativeChild =
             _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, negativeSubbox, nextDivisionAxis);
         inodes[index].positiveChild =
             _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, positiveSubbox, nextDivisionAxis);
-        return {box, false, index};
+        return {box, intCast<std::int32_t>(index + 1)};
     }
 };

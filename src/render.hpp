@@ -1,11 +1,12 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "bsp.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
 #include "utility/index_iterator.hpp"
 #include "utility/math.hpp"
-#include "utility/misc.hpp"
+#include "utility/numeric.hpp"
 #include "utility/permuted_span.hpp"
 #include "utility/random.hpp"
 #include "utility/span.hpp"
@@ -18,23 +19,22 @@
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/mat3x3.hpp>
-#include <glm/vec3.hpp>
 
 
 struct RayTraceData {
     BSPTree const& bspTree;
-    Span<glm::vec3 const> vertexNormals;                    // Vertex normals for instantiated meshes.
-    Span<IndexRange const> vertexRanges;                    // Maps from model index to range of vertices.
-    Span<MeshTri const> tris;                               // Tris for base meshes (not instantiated meshes).
-    PermutedSpan<IndexRange const> triRanges;               // Maps from model index to range of tris.
-    PermutedSpan<PreprocessedMaterial const> materials;     // Maps from model index to preprocessed mesh material.
+    Span<vec3 const> vertexNormals;                     // Vertex normals for instantiated meshes.
+    Span<VertexRange const> vertexRanges;               // Maps from model index to range of vertices.
+    Span<MeshTri const> tris;                           // Tris for base meshes (not instantiated meshes).
+    PermutedSpan<TriRange const, MeshIndex> triRanges;  // Maps from model index to range of tris.
+    PermutedSpan<PreprocessedMaterial const, MeshIndex> materials;  // Maps from model index to preprocessed mesh material.
 };
 
 
 struct RenderData {
     unsigned imageWidth;
     unsigned imageHeight;
-    glm::vec3 cameraPosition;
+    vec3 cameraPosition;
     glm::mat3 pixelToRayTransform;
     RayTraceData rayTraceData;
 };
@@ -45,7 +45,7 @@ constexpr inline static unsigned RAY_BOUNCE_LIMIT = 4;
 constexpr inline static float RAY_INTERSECTION_T_MIN = 1e-3f;   // Intersections with line param < this are discarded.
 
 
-inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
+inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
     if (bounce > RAY_BOUNCE_LIMIT) {
         return {0.0f, 0.0f, 0.0f};
     }
@@ -60,11 +60,11 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
     auto const vertexNormals = data.vertexNormals[vertexRange];
     auto const& triRange = data.triRanges[intersection->meshTriIndex.mesh];
     auto const& tri = data.tris[triRange][intersection->meshTriIndex.tri];
-    auto const pointCoord2 = intersection->pointCoord2;
-    auto const pointCoord3 = intersection->pointCoord3;
+    auto const& pointCoord2 = intersection->pointCoord2;
+    auto const& pointCoord3 = intersection->pointCoord3;
     auto const pointCoord1 = 1.0f - pointCoord2 - pointCoord3;
-    auto const normal = vertexNormals[tri.i1] * pointCoord1 + vertexNormals[tri.i2] * pointCoord2
-        + vertexNormals[tri.i3] * pointCoord3;
+    auto const normal = vertexNormals[tri.v1] * pointCoord1 + vertexNormals[tri.v2] * pointCoord2
+        + vertexNormals[tri.v3] * pointCoord3;
     auto const& material = data.materials[intersection->meshTriIndex.mesh];
     auto const point = ray(intersection->t);
     auto const outgoing = -ray.direction;
@@ -114,7 +114,7 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
 
     auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
-    glm::vec3 reflected{0.0f, 0.0f, 0.0f};
+    vec3 reflected{0.0f, 0.0f, 0.0f};
     for (unsigned i = 0; i < samples; ++i) {
         // Sample incident rays according to GGX distribution.
         auto const thetaParam = randomEngine.unitFloatOpen();
@@ -159,17 +159,18 @@ inline glm::vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& ra
 }
 
 
-inline void render(RenderData const& data, Span<glm::vec3> image) {
+inline void render(RenderData const& data, Span<vec3> image) {
     assert(image.size() == data.imageWidth * data.imageHeight);
-    std::transform(std::execution::par, IndexIterator{0}, IndexIterator{image.size()}, image.begin(), [&data](auto index) {
+    std::transform(std::execution::par, IndexIterator<>{0}, IndexIterator<>{image.size()}, image.begin(),
+            [&data](auto index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
         auto& randomEngine = ::randomEngine;    // Access random engine here to force static initialisation.
-        glm::vec3 colour{0.0f, 0.0f, 0.0f};
+        vec3 colour{0.0f, 0.0f, 0.0f};
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
             auto const sampleX = pixelX + randomEngine.unitFloatOpen();
             auto const sampleY = pixelY + randomEngine.unitFloatOpen();
-            auto const rayDirection = glm::normalize(data.pixelToRayTransform * glm::vec3{sampleX, sampleY, 1.0f});
+            auto const rayDirection = glm::normalize(data.pixelToRayTransform * vec3{sampleX, sampleY, 1.0f});
             Line const ray{data.cameraPosition, rayDirection};
             colour += rayTrace(data.rayTraceData, ray, randomEngine);
         }

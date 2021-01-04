@@ -1,5 +1,6 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "utility/math.hpp"
 #include "utility/span.hpp"
 
@@ -12,7 +13,7 @@
 #include <glm/vec3.hpp>
 
 
-inline glm::vec3 reinhardToneMap(glm::vec3 const& hdr) {
+inline vec3 reinhardToneMap(vec3 const& hdr) {
     return hdr / (1.0f + hdr);
 }
 
@@ -26,7 +27,7 @@ inline float linearToSRGB(float linear) {
     }
 }
 
-inline glm::vec3 linearToSRGB(glm::vec3 const& linear) {
+inline vec3 linearToSRGB(vec3 const& linear) {
     return {linearToSRGB(linear.r), linearToSRGB(linear.g), linearToSRGB(linear.b)};
 }
 
@@ -40,17 +41,17 @@ inline float srgbToLinear(float srgb) {
     }
 }
 
-inline glm::vec3 srgbToLinear(glm::vec3 const& srgb) {
+inline vec3 srgbToLinear(vec3 const& srgb) {
     return {srgbToLinear(srgb.r), srgbToLinear(srgb.g), srgbToLinear(srgb.b)};
 }
 
 
-inline glm::u8vec3 floatTo8BitUInt(glm::vec3 const& pixel) {
+inline glm::u8vec3 floatTo8BitUInt(vec3 const& pixel) {
     return glm::clamp(255.0f * pixel, 0.0f, 255.0f);
 }
 
 
-inline glm::vec3 nanToRed(glm::vec3 const& pixel) {
+inline vec3 nanToRed(vec3 const& pixel) {
     if (!std::isfinite(pixel.r) || !std::isfinite(pixel.g) || !std::isfinite(pixel.b)) {
         return {1.0f, 0.0f, 0.0f};
     }
@@ -61,7 +62,7 @@ inline glm::vec3 nanToRed(glm::vec3 const& pixel) {
 
 
 template<unsigned Radius>
-void medianFilter(Span<glm::vec3 const> image, std::size_t imageWidth, Span<glm::vec3> result) {
+void medianFilter(Span<vec3 const> image, std::size_t imageWidth, Span<vec3> result) {
     assert(image.size() % imageWidth == 0);
     assert(image.data() != result.data());
     assert(image.size() == result.size());

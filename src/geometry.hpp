@@ -1,5 +1,6 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "utility/math.hpp"
 #include "utility/span.hpp"
 
@@ -10,41 +11,40 @@
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
-#include <glm/vec3.hpp>
 
 
 // Axis-aligned bounding box.
 struct BoundingBox {
-    glm::vec3 min;
-    glm::vec3 max;
+    vec3 min;
+    vec3 max;
 };
 
 
 struct Line {
     // p = origin + t*direction
 
-    glm::vec3 origin;
-    glm::vec3 direction;
+    vec3 origin;
+    vec3 direction;
 
-    glm::vec3 operator()(float t) const {
+    vec3 operator()(float t) const {
         return origin + t * direction;
     }
 };
 
 
 struct Tri {
-    glm::vec3 v1;
-    glm::vec3 v2;
-    glm::vec3 v3;
+    vec3 v1;
+    vec3 v2;
+    vec3 v3;
 };
 
 
 // Tri preprocessed for line intersection calculation.
 struct PreprocessedTri {
-    glm::vec3 v1;
-    glm::vec3 v1ToV2;
-    glm::vec3 v1ToV3;
-    glm::vec3 normal;
+    vec3 v1;
+    vec3 v1ToV2;
+    vec3 v1ToV3;
+    vec3 normal;
 };
 
 
@@ -69,14 +69,14 @@ inline PreprocessedTri preprocessTri(Tri const& tri) {
 }
 
 
-inline bool inBox(glm::vec3 const& point, BoundingBox const& box) {
+inline bool inBox(vec3 const& point, BoundingBox const& box) {
     return point.x >= box.min.x && point.x <= box.max.x
         && point.y >= box.min.y && point.y <= box.max.y
         && point.z >= box.min.z && point.z <= box.max.z;
 }
 
 
-inline BoundingBox computeBoundingBox(Span<glm::vec3 const> points) {
+inline BoundingBox computeBoundingBox(Span<vec3 const> points) {
     BoundingBox box{{INFINITY, INFINITY, INFINITY}, {-INFINITY, -INFINITY, -INFINITY}};
     for (auto const& point : points) {
         box.min = glm::min(box.min, point);
@@ -238,9 +238,9 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
     };
 
     // Translate tri and box such that box centre is at origin. Simplifies/optimises checks of the box vertices.
-    glm::vec3 boxRadius;
+    vec3 boxRadius;
     boxRadius.x = (box.max.x - box.min.x) / 2.0f;
-    glm::vec3 boxCentre;
+    vec3 boxCentre;
     boxCentre.x = box.min.x + boxRadius.x;
     tri.v1.x -= boxCentre.x;
     tri.v2.x -= boxCentre.x;

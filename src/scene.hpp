@@ -1,30 +1,25 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "camera.hpp"
 #include "geometry.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
-#include "utility/misc.hpp"
 
-#include <cstddef>
 #include <initializer_list>
 #include <tuple>
 #include <vector>
 
-#include <glm/vec3.hpp>
-
 
 struct Meshes {
-    std::vector<glm::vec3> vertexPositions;
-    std::vector<glm::vec3> vertexNormals;
+    std::vector<vec3> vertexPositions;
+    std::vector<vec3> vertexNormals;
     std::vector<MeshTri> tris;
-    std::vector<IndexRange> vertexRanges;
-    std::vector<IndexRange> triRanges;
+    std::vector<VertexRange> vertexRanges;
+    std::vector<TriRange> triRanges;
 
-    Meshes(std::initializer_list<std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>,
+    Meshes(std::initializer_list<std::tuple<std::vector<vec3>, std::vector<vec3>,
         std::vector<MeshTri>>> meshes);
-    
-    std::size_t meshCount() const;
 };
 
 
@@ -34,11 +29,11 @@ struct Scene {
     std::vector<Material> materials;
     struct Models {
         std::vector<MeshTransform> meshTransforms;
-        std::vector<std::size_t> meshes;
-        std::vector<std::size_t> materials;
+        std::vector<MeshIndex> meshes;
+        std::vector<MaterialIndex> materials;
     } models;
     InstantiatedMeshes instantiatedMeshes;
     std::vector<PreprocessedTri> preprocessedTris;
-    std::vector<IndexRange> preprocessedTriRanges;
+    std::vector<TriRange> preprocessedTriRanges;
     std::vector<PreprocessedMaterial> preprocessedMaterials;
 };

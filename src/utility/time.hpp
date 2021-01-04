@@ -1,19 +1,8 @@
 #pragma once
 
 #include <array>
-#include <chrono>
 #include <cmath>
-#include <cstddef>
-
-
-struct IndexRange {
-    std::size_t begin;
-    std::size_t size;
-
-    std::size_t end() const {
-        return begin + size;
-    }
-};
+#include <chrono>
 
 
 using FPSeconds = std::chrono::duration<double, std::chrono::seconds::period>;

@@ -1,7 +1,8 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "geometry.hpp"
-#include "utility/misc.hpp"
+#include "utility/numeric.hpp"
 #include "utility/span.hpp"
 #include "utility/permuted_span.hpp"
 
@@ -14,27 +15,27 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/mat3x3.hpp>
 #include <glm/mat4x3.hpp>
-#include <glm/vec3.hpp>
+
 #include <glm/vec4.hpp>
 
 
 struct MeshTri {
-    unsigned i1;
-    unsigned i2;
-    unsigned i3;
+    VertexIndex v1;
+    VertexIndex v2;
+    VertexIndex v3;
 };
 
 
 struct MeshTriIndex {
-    std::size_t mesh;
-    std::size_t tri;
+    MeshIndex mesh;
+    TriIndex tri;
 };
 
 
 struct MeshTransform {
-    glm::vec3 position{0.0f, 0.0f, 0.0f};
+    vec3 position{0.0f, 0.0f, 0.0f};
     glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
-    glm::vec3 scale{1.0f, 1.0f, 1.0f};
+    vec3 scale{1.0f, 1.0f, 1.0f};
 
     glm::mat4x3 matrix() const {
         glm::mat4x3 m{glm::mat3_cast(orientation)};
@@ -48,9 +49,9 @@ struct MeshTransform {
 
 
 struct InstantiatedMeshes {
-    std::vector<glm::vec3> vertexPositions;
-    std::vector<glm::vec3> vertexNormals;
-    std::vector<IndexRange> vertexRanges;       // Maps from mesh instance index to range of vertices.
+    std::vector<vec3> vertexPositions;
+    std::vector<vec3> vertexNormals;
+    std::vector<VertexRange> vertexRanges;      // Maps from mesh instance index to range of vertices.
 };
 
 
@@ -59,9 +60,9 @@ inline glm::mat3 normalTransform(glm::mat4 modelTransform) {
 }
 
 
-inline void instantiateMeshes(Span<glm::vec3 const> vertexPositions, Span<glm::vec3 const> vertexNormals,
-        Span<IndexRange const> vertexRanges, Span<MeshTransform const> instanceTransforms,
-        Span<std::size_t const> instanceMeshes, InstantiatedMeshes& result) {
+inline void instantiateMeshes(Span<vec3 const> vertexPositions, Span<vec3 const> vertexNormals,
+        Span<VertexRange const> vertexRanges, Span<MeshTransform const> instanceTransforms,
+        Span<MeshIndex const> instanceMeshes, InstantiatedMeshes& result) {
     assert(vertexPositions.size() == vertexNormals.size());
     assert(instanceTransforms.size() == instanceMeshes.size());
 
@@ -97,15 +98,18 @@ inline void instantiateMeshes(Span<glm::vec3 const> vertexPositions, Span<glm::v
                     return glm::normalize(normalTransform * normal);
                 });
         }
-        result.vertexRanges[instanceIndex] = {verticesOffset, vertexRange.size};
+        result.vertexRanges[instanceIndex] = {
+            intCast<VertexRange::IndexType>(verticesOffset),
+            intCast<VertexRange::SizeType>(vertexRange.size)
+        };
         verticesOffset += vertexRange.size;
     }
 }
 
 
-inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRange const> vertexRanges,
-        Span<MeshTri const> tris, PermutedSpan<IndexRange const> triRanges, std::vector<PreprocessedTri>& resultTris,
-        std::vector<IndexRange>& resultTriRanges) {
+inline void preprocessTris(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+        Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
+        std::vector<PreprocessedTri>& resultTris, std::vector<TriRange>& resultTriRanges) {
     assert(vertexRanges.size() == triRanges.size());
 
     auto const instanceCount = vertexRanges.size();
@@ -125,12 +129,18 @@ inline void preprocessTris(Span<glm::vec3 const> vertexPositions, Span<IndexRang
         auto const instanceTris = tris[triRanges[instanceIndex]];
         for (std::size_t i = 0; i < instanceTris.size(); ++i) {
             auto const& meshTri = instanceTris[i];
-            Tri const tri{instanceVertexPositions[meshTri.i1], instanceVertexPositions[meshTri.i2],
-                instanceVertexPositions[meshTri.i3]};
+            Tri const tri{
+                instanceVertexPositions[meshTri.v1],
+                instanceVertexPositions[meshTri.v2],
+                instanceVertexPositions[meshTri.v3]
+            };
             auto const preprocessedTri = preprocessTri(tri);
             resultTris[trisOffset + i] = preprocessedTri;
         }
-        resultTriRanges[instanceIndex] = {trisOffset, instanceTris.size()};
+        resultTriRanges[instanceIndex] = {
+            intCast<TriRange::IndexType>(trisOffset),
+            intCast<TriRange::SizeType>(instanceTris.size())
+        };
         trisOffset += instanceTris.size();
     }
 }

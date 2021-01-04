@@ -1,6 +1,6 @@
 #pragma once
 
-#include "misc.hpp"
+#include "numeric.hpp"
 #include "permutation_iterator.hpp"
 #include "span.hpp"
 
@@ -8,16 +8,16 @@
 #include <type_traits>
 
 
-template<typename T>
+template<typename T, typename IndexType = std::size_t>
 class PermutedSpan {
 public:
     using value_type = std::remove_cv_t<T>;
     using reference = T&;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
-    using iterator = PermutationIterator<T>;
+    using iterator = PermutationIterator<T, IndexType>;
 
-    PermutedSpan(Span<T> elements, Span<std::size_t const> indices) :
+    PermutedSpan(Span<T> elements, Span<IndexType const> indices) :
         _elements{elements}, _indices{indices}
     {}
 
@@ -25,7 +25,7 @@ public:
         return _elements;
     }
 
-    Span<std::size_t const> indices() const {
+    Span<IndexType const> indices() const {
         return _indices;
     }
 
@@ -45,11 +45,12 @@ public:
         return _elements[_indices[index]];
     }
 
-    PermutedSpan<T> operator[](IndexRange range) const {
+    template<typename U, typename V>
+    PermutedSpan<T, IndexType> operator[](IndexRange<U, V> const& range) const {
         return {_elements, _indices[range]};
     }
 
 private:
     Span<T> _elements;
-    Span<std::size_t const> _indices;
+    Span<IndexType const> _indices;
 };

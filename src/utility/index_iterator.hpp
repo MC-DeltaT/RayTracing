@@ -5,11 +5,12 @@
 #include <iterator>
 
 
+template<typename T = std::size_t>
 class IndexIterator {
 public:
-	using value_type = std::size_t;
-	using reference = std::size_t;
-	using pointer = std::size_t const*;
+	using value_type = T;
+	using reference = T;
+	using pointer = T const*;
 	using difference_type = std::ptrdiff_t;
 	using iterator_category = std::random_access_iterator_tag;
 
@@ -17,11 +18,11 @@ public:
         _index{0}
     {}
 
-	IndexIterator(std::size_t index) :
+	IndexIterator(T index) :
 		_index{index}
 	{}
 
-	std::size_t index() const {
+	T index() const {
 		return _index;
 	}
 
@@ -30,7 +31,7 @@ public:
 	}
 
 	reference operator[](difference_type index) const {
-		assert(index >= 0 || static_cast<std::size_t>(-index) <= _index);
+		assert(index >= 0 || static_cast<T>(-index) <= _index);
 		return _index + index;
 	}
 
@@ -56,50 +57,60 @@ public:
     }
 
 private:
-	std::size_t _index;
+	T _index;
 };
 
 
-inline bool operator==(IndexIterator const& lhs, IndexIterator const& rhs) {
+template<typename T>
+inline bool operator==(IndexIterator<T> const& lhs, IndexIterator<T> const& rhs) {
     return lhs.index() == rhs.index();
 }
 
-inline bool operator!=(IndexIterator const& lhs, IndexIterator const& rhs) {
+template<typename T>
+inline bool operator!=(IndexIterator<T> const& lhs, IndexIterator<T> const& rhs) {
     return lhs.index() != rhs.index();
 }
 
-inline bool operator<(IndexIterator const& lhs, IndexIterator const& rhs) {
+template<typename T>
+inline bool operator<(IndexIterator<T> const& lhs, IndexIterator<T> const& rhs) {
     return lhs.index() < rhs.index();
 }
 
-inline bool operator<=(IndexIterator const& lhs, IndexIterator const& rhs) {
+template<typename T>
+inline bool operator<=(IndexIterator<T> const& lhs, IndexIterator<T> const& rhs) {
     return lhs.index() <= rhs.index();
 }
 
-inline bool operator>(IndexIterator const& lhs, IndexIterator const& rhs) {
+template<typename T>
+inline bool operator>(IndexIterator<T> const& lhs, IndexIterator<T> const& rhs) {
     return lhs.index() > rhs.index();
 }
 
-inline bool operator>=(IndexIterator const& lhs, IndexIterator const& rhs) {
+template<typename T>
+inline bool operator>=(IndexIterator<T> const& lhs, IndexIterator<T> const& rhs) {
     return lhs.index() >= rhs.index();
 }
 
-inline IndexIterator operator+(IndexIterator it, typename IndexIterator::difference_type n) {
+template<typename T>
+inline IndexIterator<T> operator+(IndexIterator<T> it, typename IndexIterator<T>::difference_type n) {
     it += n;
     return it;
 }
 
-inline IndexIterator operator+(typename IndexIterator::difference_type n, IndexIterator it) {
+template<typename T>
+inline IndexIterator<T> operator+(typename IndexIterator<T>::difference_type n, IndexIterator<T> it) {
     it += n;
     return it;
 }
 
-inline IndexIterator operator-(IndexIterator it, typename IndexIterator::difference_type n) {
+template<typename T>
+inline IndexIterator<T> operator-(IndexIterator<T> it, typename IndexIterator<T>::difference_type n) {
     it -= n;
     return it;
 }
 
-inline typename IndexIterator::difference_type operator-(IndexIterator const& lhs,
-        IndexIterator const& rhs) {
+template<typename T>
+inline typename IndexIterator<T>::difference_type operator-(IndexIterator<T> const& lhs,
+        IndexIterator<T> const& rhs) {
     return lhs.index() - rhs.index();
 }

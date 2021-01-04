@@ -1,10 +1,11 @@
 #include "scene.hpp"
 
-#include <cassert>
+#include "utility/numeric.hpp"
+
 #include <cstddef>
 
 
-Meshes::Meshes(std::initializer_list<std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>,
+Meshes::Meshes(std::initializer_list<std::tuple<std::vector<vec3>, std::vector<vec3>,
         std::vector<MeshTri>>> meshes) {
     vertexRanges.reserve(meshes.size());
     triRanges.reserve(meshes.size());
@@ -15,14 +16,15 @@ Meshes::Meshes(std::initializer_list<std::tuple<std::vector<glm::vec3>, std::vec
         this->vertexPositions.insert(this->vertexPositions.cend(), vertexPositions.cbegin(), vertexPositions.cend());
         this->vertexNormals.insert(this->vertexNormals.cend(), vertexNormals.cbegin(), vertexNormals.cend());
         this->tris.insert(this->tris.cend(), tris.cbegin(), tris.cend());
-        vertexRanges.push_back({verticesOffset, vertexPositions.size()});
-        triRanges.push_back({trisOffset, tris.size()});
+        vertexRanges.push_back({
+            intCast<VertexRange::IndexType>(verticesOffset),
+            intCast<VertexRange::SizeType>(vertexPositions.size())
+        });
+        triRanges.push_back({
+            intCast<TriRange::IndexType>(trisOffset),
+            intCast<TriRange::SizeType>(tris.size())
+        });
         verticesOffset += vertexPositions.size();
         trisOffset += tris.size();
     }
-}
-
-std::size_t Meshes::meshCount() const {
-    assert(vertexRanges.size() == triRanges.size());
-    return vertexRanges.size();
 }

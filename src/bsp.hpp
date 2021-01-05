@@ -60,7 +60,10 @@ public:
                     auto const& tri = preprocessedTris[triRange][meshTriIndex.tri];
                     if (auto const intersection = lineTriIntersection<Surfaces>(line, tri, tMin, nearestIntersection.t)) {
                         auto const point = line(intersection->t);
-                        if (inBox(point, box)) {
+                        auto const inBox = point.x >= box.min.x && point.x <= box.max.x
+                                        && point.y >= box.min.y && point.y <= box.max.y
+                                        && point.z >= box.min.z && point.z <= box.max.z;
+                        if (inBox) {
                             nearestIntersection = {*intersection, meshTriIndex};
                             hasIntersection = true;
                         }

@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <execution>
 
 #include <glm/geometric.hpp>
@@ -46,14 +47,17 @@ constexpr inline static float RAY_INTERSECTION_T_MIN = 1e-3f;   // Intersections
 
 
 inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomEngine, unsigned bounce = 0) {
-    if (bounce > RAY_BOUNCE_LIMIT) {
-        return {0.0f, 0.0f, 0.0f};
-    }
-
     auto const intersection = data.bspTree.lineTriNearestIntersection<SurfaceConsideration::FRONT_ONLY>(
         ray, RAY_INTERSECTION_T_MIN);
     if (!intersection) {
         return {0.0f, 0.0f, 0.0f};
+    }
+
+    auto const& material = data.materials[intersection->meshTriIndex.mesh];
+
+    // No need to calculate reflected light if this is the last bounce - next recursion would return no light anyway.
+    if (bounce == RAY_BOUNCE_LIMIT) {
+        return material.emission;
     }
 
     auto const& vertexRange = data.vertexRanges[intersection->meshTriIndex.mesh];
@@ -63,9 +67,8 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
     auto const& pointCoord2 = intersection->pointCoord2;
     auto const& pointCoord3 = intersection->pointCoord3;
     auto const pointCoord1 = 1.0f - pointCoord2 - pointCoord3;
-    auto const normal = vertexNormals[tri.v1] * pointCoord1 + vertexNormals[tri.v2] * pointCoord2
+    auto normal = vertexNormals[tri.v1] * pointCoord1 + vertexNormals[tri.v2] * pointCoord2
         + vertexNormals[tri.v3] * pointCoord3;
-    auto const& material = data.materials[intersection->meshTriIndex.mesh];
     auto const point = ray(intersection->t);
     auto const outgoing = -ray.direction;
 
@@ -74,7 +77,12 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
 
     assert(isUnitVector(normal));
     assert(isUnitVector(outgoing));
-    auto const nDotO = std::max(glm::dot(normal, outgoing), 0.0f);
+    auto nDotO = glm::dot(normal, outgoing);
+    // Flip normal direction if ray strikes back of surface.
+    if (nDotO < 0.0f) {
+        nDotO = -nDotO;
+        normal = -normal;
+    }
 
     // GGX microfacet distribution function.
     auto const ndf = [&material](float nDotH) {
@@ -91,13 +99,8 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
             return 2.0f / (1.0f + std::sqrt(1.0f + material.geometryAlphaSq * (1.0f - nDotRSq) / nDotRSq));
         };
 
-        assert(nDotI > 0.0f && nDotO >= 0.0f && hDotI > 0.0f && hDotO == hDotI);
-        if (nDotO > 0.0f) {
-            return partial(nDotI) * partial(nDotO);
-        }
-        else {
-            return 0.0f;
-        }
+        assert(nDotI > 0.0f && nDotO > 0.0f && hDotI > 0.0f && hDotO == hDotI);
+        return partial(nDotI) * partial(nDotO);
     };
 
     // Fresnel-Schlick equation.
@@ -108,11 +111,11 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
         return material.f0 + material.oneMinusF0 * iPow(1.0f - hDotO, 5);
     };
 
+    auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
+
     // Take more samples as ray bounces further to try to represent surfaces uniformly even after several bounces
     // (the probability of a specific ray being selected decreases as more bounces occur).
     auto const samples = bounce + 1;
-
-    auto const [perpendicular1, perpendicular2] = orthonormalBasis(normal);
 
     vec3 reflected{0.0f, 0.0f, 0.0f};
     for (unsigned i = 0; i < samples; ++i) {
@@ -140,13 +143,15 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
             auto const& nDotH = cosTheta;
             auto const& hDotI = hDotO;
             auto const specularD = ndf(nDotH);
-            auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
             auto const specularF = fresnel(hDotO);
             // ray probability = specularD * nDotH / (4 * hDotO)
-            auto const specular = specularG * specularF * hDotO / (nDotO * nDotH);
             auto const diffuse = 4.0f * (1.0f - specularF) * material.adjustedColour * nDotI * hDotO / (specularD * nDotH);
-            auto const weight = diffuse + specular;
-            
+            auto weight = diffuse;
+            if (nDotO > 0.0f) {
+                auto const specularG = geometry(nDotI, nDotO, hDotI, hDotO);
+                auto const specular = specularG * specularF * hDotO / (nDotO * nDotH);
+                weight += specular;
+            }
             reflected += incidentLight * weight;
         }
     }
@@ -154,15 +159,14 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
 
     // TODO? light transmission
 
-    auto const colour = material.emission + reflected;
-    return colour;
+    return material.emission + reflected;
 }
 
 
 inline void render(RenderData const& data, Span<vec3> image) {
     assert(image.size() == data.imageWidth * data.imageHeight);
     std::transform(std::execution::par, IndexIterator<>{0}, IndexIterator<>{image.size()}, image.begin(),
-            [&data](auto index) {
+            [&data](std::size_t index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
         auto& randomEngine = ::randomEngine;    // Access random engine here to force static initialisation.

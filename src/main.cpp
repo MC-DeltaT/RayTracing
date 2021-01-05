@@ -140,9 +140,9 @@ int main() {
         },
         {   // Models
             {   // Mesh instance transforms
-                {{2.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {16.0f, 1.0f, 16.0f}},                       // Floor
-                {{0.0f, 5.0f, -6.0f}, vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}},  // Mirror 1
-                {{-6.0f, 5.0f, 0.0f}, vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}}  // Mirror 2
+                {{2.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {16.0f, 1.0f, 16.0f}},                   // Floor
+                {{0.0f, 5.0f, -6.0f}, vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}},   // Mirror 1
+                {{-6.0f, 5.0f, 0.0f}, vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}}   // Mirror 2
             },
             {   // Model mesh indices
                 0, 0, 0
@@ -156,25 +156,30 @@ int main() {
     };
 
     // Generate RGB cube models.
-    constexpr unsigned CUBE_DIVISOR = 3;
-    constexpr float CUBE_SPACING = 1.5f;
-    for (unsigned x = 0; x < CUBE_DIVISOR; ++x) {
-        for (unsigned y = 0; y < CUBE_DIVISOR; ++y) {
-            for (unsigned z = 0; z < CUBE_DIVISOR; ++z) {
-                auto const colour = srgbToLinear(vec3{
-                    x / static_cast<float>(CUBE_DIVISOR - 1),
-                    y / static_cast<float>(CUBE_DIVISOR - 1),
-                    z / static_cast<float>(CUBE_DIVISOR - 1)
-                });
-                scene.materials.push_back({colour, 0.5f, 0.5f, colour});
-                vec3 const position{
-                    (x - (CUBE_DIVISOR - 1) / 2.0f) * CUBE_SPACING,
-                    y * CUBE_SPACING + 0.5f,
-                    (z - (CUBE_DIVISOR - 1) / 2.0f) * CUBE_SPACING
-                };
-                scene.models.meshTransforms.push_back({position});
-                scene.models.meshes.push_back(1);
-                scene.models.materials.push_back(intCast<MaterialIndex>(scene.materials.size() - 1));
+    {
+        constexpr vec3 POSITION{0.0f, 2.5f, 0.0f};
+        constexpr float SCALE = 4.0f;
+        constexpr unsigned DIVISOR = 3;
+        constexpr float SUBSCALE = 0.75f;
+        for (unsigned x = 0; x < DIVISOR; ++x) {
+            auto const xFract = x / static_cast<float>(DIVISOR - 1);
+            for (unsigned y = 0; y < DIVISOR; ++y) {
+                auto const yFract = y / static_cast<float>(DIVISOR - 1);
+                for (unsigned z = 0; z < DIVISOR; ++z) {
+                    auto const zFract = z / static_cast<float>(DIVISOR - 1);
+                    auto const colour = srgbToLinear(vec3{xFract, yFract, zFract});
+                    scene.materials.push_back({colour, 0.5f, 0.5f, colour});
+                    auto const position = vec3{
+                        (xFract - 0.5f) * (SCALE - SCALE / DIVISOR),
+                        (yFract - 0.5f) * (SCALE - SCALE / DIVISOR),
+                        (zFract - 0.5f) * (SCALE - SCALE / DIVISOR)
+                    } + POSITION;
+                    constexpr glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
+                    constexpr vec3 scale{SUBSCALE * SCALE / DIVISOR};
+                    scene.models.meshTransforms.push_back({position, orientation, scale});
+                    scene.models.meshes.push_back(1);
+                    scene.models.materials.push_back(intCast<MaterialIndex>(scene.materials.size() - 1));
+                }
             }
         }
     }
@@ -196,7 +201,10 @@ int main() {
         PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
         scene.preprocessedTris, scene.preprocessedTriRanges);
 
-    auto const meshBoundingBox = computeBoundingBox(readOnlySpan(scene.instantiatedMeshes.vertexPositions));
+    auto meshBoundingBox = computeBoundingBox(readOnlySpan(scene.instantiatedMeshes.vertexPositions));
+    // Expand bounding box slightly to account for FP error when handling surfaces right on edge of box.
+    meshBoundingBox.min *= 1.001f;
+    meshBoundingBox.max *= 1.001f;
 
     BSPTree const bspTree{
         readOnlySpan(scene.instantiatedMeshes.vertexPositions), readOnlySpan(scene.instantiatedMeshes.vertexRanges),
@@ -225,6 +233,7 @@ int main() {
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(),
         static_cast<vec3(*)(vec3 const&)>(linearToSRGB));
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), nanToRed);
+    std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), infToGreen);
     std::copy(renderBuffer.cbegin(), renderBuffer.cend(), filteredBuffer.begin());
     medianFilter<1>(readOnlySpan(renderBuffer), IMAGE_WIDTH, Span{filteredBuffer});
     std::transform(filteredBuffer.cbegin(), filteredBuffer.cend(), imageBuffer.begin(), floatTo8BitUInt);

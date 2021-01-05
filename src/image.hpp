@@ -52,8 +52,18 @@ inline glm::u8vec3 floatTo8BitUInt(vec3 const& pixel) {
 
 
 inline vec3 nanToRed(vec3 const& pixel) {
-    if (!std::isfinite(pixel.r) || !std::isfinite(pixel.g) || !std::isfinite(pixel.b)) {
+    if (std::isnan(pixel.r) || std::isnan(pixel.g) || std::isnan(pixel.b)) {
         return {1.0f, 0.0f, 0.0f};
+    }
+    else {
+        return pixel;
+    }
+}
+
+
+inline vec3 infToGreen(vec3 const& pixel) {
+    if (std::isinf(pixel.r) || std::isinf(pixel.g) || std::isinf(pixel.b)) {
+        return {0.0f, 1.0f, 0.0f};
     }
     else {
         return pixel;

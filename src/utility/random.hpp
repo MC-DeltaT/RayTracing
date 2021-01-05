@@ -20,12 +20,12 @@ public:
 
     // Generates random float in range [0, 1).
     float unitFloatOpen() {
-        return static_cast<float>(value()) / 0xFFFFFFFE;
+        return static_cast<float>(value()) / 0x100000000;
     }
 
     // Generates random float in range [0, 2*pi).
     float angle() {
-        return (glm::two_pi<float>() / 0xFFFFFFFE) * value();
+        return glm::two_pi<float>() * unitFloatOpen();;
     }
 
 private:

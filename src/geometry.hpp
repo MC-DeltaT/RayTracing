@@ -69,13 +69,6 @@ inline PreprocessedTri preprocessTri(Tri const& tri) {
 }
 
 
-inline bool inBox(vec3 const& point, BoundingBox const& box) {
-    return point.x >= box.min.x && point.x <= box.max.x
-        && point.y >= box.min.y && point.y <= box.max.y
-        && point.z >= box.min.z && point.z <= box.max.z;
-}
-
-
 inline BoundingBox computeBoundingBox(Span<vec3 const> points) {
     BoundingBox box{{INFINITY, INFINITY, INFINITY}, {-INFINITY, -INFINITY, -INFINITY}};
     for (auto const& point : points) {
@@ -296,7 +289,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
 
     // Test box normals cross tri edges.
     auto const triEdge1 = tri.v2 - tri.v1;
-    // Box normal 1 cross tri edge 1: (0, -triEdge1.z, triEdge1.y)
+    // X cross tri edge 1: (0, -triEdge1.z, triEdge1.y)
     {
         auto const triV1Proj = tri.v1.z * tri.v2.y - tri.v1.y * tri.v2.z;
         // triV2Proj = triV1Proj
@@ -310,7 +303,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
             return false;
         }
     }
-    // Box normal 2 cross tri edge 1: (triEdge1.z, 0, -triEdge1.x)
+    // Y cross tri edge 1: (triEdge1.z, 0, -triEdge1.x)
     {
         auto const triV1Proj = tri.v1.x * tri.v2.z - tri.v1.z * tri.v2.x;
         // triV2Proj = triV1Proj
@@ -324,7 +317,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
             return false;
         }
     }
-    // Box normal 3 cross tri edge 1: (-triEdge1.y, triEdge1.x, 0)
+    // Z cross tri edge 1: (-triEdge1.y, triEdge1.x, 0)
     {
         auto const triV1Proj = tri.v1.y * tri.v2.x - tri.v1.x * tri.v2.y;
         // triV2Proj = triV1Proj
@@ -339,7 +332,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
         }
     }
     auto const triEdge2 = tri.v3 - tri.v1;
-    // Box normal 1 cross tri edge 2: (0, -triEdge2.z, triEdge2.y)
+    // X cross tri edge 2: (0, -triEdge2.z, triEdge2.y)
     {
         auto const triV1Proj = tri.v1.z * tri.v3.y - tri.v1.y * tri.v3.z;
         auto const triV2Proj = tri.v2.z * triEdge2.y - tri.v2.y * triEdge2.z;
@@ -353,7 +346,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
             return false;
         }
     }
-    // Box normal 2 cross tri edge 2: (triEdge2.z, 0, -triEdge2.x)
+    // Y cross tri edge 2: (triEdge2.z, 0, -triEdge2.x)
     {
         auto const triV1Proj = tri.v1.x * tri.v3.z - tri.v1.z * tri.v3.x;
         auto const triV2Proj = tri.v2.x * triEdge2.z - tri.v2.z * triEdge2.x;
@@ -367,7 +360,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
             return false;
         }
     }
-    // Box normal 3 cross tri edge 2: (-triEdge2.y, triEdge2.x, 0)
+    // Z cross tri edge 2: (-triEdge2.y, triEdge2.x, 0)
     {
         auto const triV1Proj = tri.v1.y * tri.v3.x - tri.v1.x * tri.v3.y;
         auto const triV2Proj = tri.v2.y * triEdge2.x - tri.v2.x * triEdge2.y;
@@ -382,7 +375,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
         }
     }
     auto const triEdge3 = tri.v3 - tri.v2;
-    // Box normal 1 cross tri edge 3: (0, -triEdge3.z, triEdge3.y)
+    // X cross tri edge 3: (0, -triEdge3.z, triEdge3.y)
     {
         auto const triV1Proj = tri.v1.z * triEdge3.y - tri.v1.y * triEdge3.z;
         auto const triV2Proj = tri.v2.z * tri.v3.y - tri.v2.y * tri.v3.z;
@@ -396,7 +389,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
             return false;
         }
     }
-    // Box normal 2 cross tri edge 3: (triEdge3.z, 0, -triEdge3.x)
+    // Y cross tri edge 3: (triEdge3.z, 0, -triEdge3.x)
     {
         auto const triV1Proj = tri.v1.x * triEdge3.z - tri.v1.z * triEdge3.x;
         auto const triV2Proj = tri.v2.x * tri.v3.z - tri.v2.z * tri.v3.x;
@@ -410,7 +403,7 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
             return false;
         }
     }
-    // Box normal 3 cross tri edge 3: (-triEdge3.y, triEdge3.x, 0)
+    // Z cross tri edge 3: (-triEdge3.y, triEdge3.x, 0)
     {
         auto const triV1Proj = tri.v1.y * triEdge3.x - tri.v1.x * triEdge3.y;
         auto const triV2Proj = tri.v2.y * tri.v3.x - tri.v2.x * tri.v3.y;

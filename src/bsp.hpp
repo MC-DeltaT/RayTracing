@@ -30,14 +30,13 @@ public:
             BoundingBox const& box) :
         _root{}, _inodes{}, _leaves{}, _preprocessedTriRanges{preprocessedTriRanges}, _preprocessedTris{preprocessedTris}
     {
-        {
-            auto const approxLeaves = static_cast<std::size_t>(
-                std::ceil(tris.size() / static_cast<double>(Leaf::MAX_TRIS)));
-            _leaves.reserve(approxLeaves);
-            auto const approxInodes = std::max<std::size_t>(approxLeaves, 1) - 1;
-            _inodes.reserve(approxInodes);
-        }
-        _root = _createNode(vertexPositions, vertexRanges, tris, triRanges, _inodes, _leaves, box);
+        auto const approxLeaves = static_cast<std::size_t>(
+            std::ceil(preprocessedTris.size() / static_cast<double>(Leaf::MAX_TRIS)));
+        _leaves.reserve(approxLeaves);
+        auto const approxInodes = std::max<std::size_t>(approxLeaves, 1) - 1;
+        _inodes.reserve(approxInodes);
+
+        _root = _createNode(vertexPositions, vertexRanges, tris, triRanges, _inodes, _leaves, box, 0);
     }
 
     template<SurfaceConsideration Surfaces>

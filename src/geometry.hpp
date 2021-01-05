@@ -41,10 +41,10 @@ struct Tri {
 
 // Tri preprocessed for line intersection calculation.
 struct PreprocessedTri {
-    vec3 v1;
-    vec3 v1ToV2;
-    vec3 v1ToV3;
     vec3 normal;
+    vec3 v1;
+    vec3 v1ToV3;
+    vec3 v1ToV2;
 };
 
 
@@ -65,7 +65,7 @@ inline PreprocessedTri preprocessTri(Tri const& tri) {
     auto const v1ToV2 = tri.v2 - tri.v1;
     auto const v1ToV3 = tri.v3 - tri.v1;
     auto const normal = glm::cross(v1ToV2, v1ToV3);
-    return {tri.v1, v1ToV2, v1ToV3, normal};
+    return {normal, tri.v1, v1ToV3, v1ToV2};
 }
 
 
@@ -88,12 +88,11 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
         (Line const& line, PreprocessedTri const& tri, float tMin, float tMax) {
     assert(isUnitVector(line.direction));
 
-    auto det = glm::dot(line.direction, tri.normal);
-    if (det > -1e-6f) {
+    auto const negDet = glm::dot(line.direction, tri.normal);
+    if (negDet > -1e-6f) {
         return std::nullopt;
     }
-    det = -det;
-    auto const invDet = 1.0f / det;
+    auto const invDet = -1.0f / negDet;
     // det and invDet guaranteed to be > 0
     auto const AO = line.origin - tri.v1;
     auto const t = glm::dot(AO, tri.normal) * invDet;
@@ -103,7 +102,7 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
     auto const DAO = glm::cross(AO, line.direction);
     auto u = glm::dot(tri.v1ToV3, DAO);
     auto v = glm::dot(tri.v1ToV2, DAO);
-    if (u >= 0.0f && v <= 0.0f && u - v <= det) {
+    if (u >= 0.0f && v <= 0.0f && v - u >= negDet) {
         u *= invDet;
         v *= -invDet;
         return {{t, u, v}};
@@ -118,11 +117,11 @@ inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsiderati
         (Line const& line, PreprocessedTri const& tri, float tMin, float tMax) {
     assert(isUnitVector(line.direction));
 
-    auto det = glm::dot(line.direction, tri.normal);
-    if (std::abs(det) < 1e-6f) {
+    auto negDet = glm::dot(line.direction, tri.normal);
+    if (std::abs(negDet) < 1e-6f) {
         return std::nullopt;
     }
-    auto const invDet = -1.0f / det;
+    auto const invDet = -1.0f / negDet;
     auto const AO  = line.origin - tri.v1;
     auto const t = glm::dot(AO, tri.normal) * invDet;
     if (t > tMax || t < tMin) {

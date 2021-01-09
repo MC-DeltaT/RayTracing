@@ -12,7 +12,6 @@
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
-#include <immintrin.h>
 
 
 // Axis-aligned bounding box.
@@ -65,10 +64,10 @@ enum class SurfaceConsideration {
 
 
 struct LineTrisIntersection {
-    __m256i exists;         // Indicates if specific intersection occurred.
-    __m256 t;               // Line equation parameter.
-    __m256 pointCoord2;     // Barycentric coordinate relative to vertex 2.
-    __m256 pointCoord3;     // Barycentric coordinate relative to vertex 3.
+    U32Vec8 exists;         // Indicates if specific intersection occurred.
+    FVec8 t;                // Line equation parameter.
+    FVec8 pointCoord2;      // Barycentric coordinate relative to vertex 2.
+    FVec8 pointCoord3;      // Barycentric coordinate relative to vertex 3.
 };
 
 

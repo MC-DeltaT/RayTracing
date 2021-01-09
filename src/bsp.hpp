@@ -71,8 +71,8 @@ public:
                     auto const blockIndex = triIndex / 8;
                     auto const i = triIndex % 8;
                     auto const& blockIntersections = intersections[blockIndex];
-                    if (blockIntersections.exists.m256i_u32[i]) {
-                        auto const t = blockIntersections.t.m256_f32[i];
+                    if (blockIntersections.exists[i]) {
+                        auto const t = blockIntersections.t[i];
                         if (t < nearestIntersection.t && t >= tMin) {
                             auto const point = line(t);
                             auto const inBox = point.x >= box.min.x && point.x <= box.max.x
@@ -80,8 +80,8 @@ public:
                                             && point.z >= box.min.z && point.z <= box.max.z;
                             if (inBox) {
                                 nearestIntersection = {
-                                    t, blockIntersections.pointCoord2.m256_f32[i],
-                                    blockIntersections.pointCoord3.m256_f32[i],
+                                    t, blockIntersections.pointCoord2[i],
+                                    blockIntersections.pointCoord3[i],
                                     point, leaf.triIndices[triIndex]};
                                 hasIntersection = true;
                             }

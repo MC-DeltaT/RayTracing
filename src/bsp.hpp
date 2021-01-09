@@ -17,8 +17,12 @@
 #include <vector>
 
 
-struct LineMeshIntersection : LineTriIntersection {
-    MeshTriIndex meshTriIndex;
+struct LineMeshIntersection {
+    float t;                    // Line equation parameter.
+    float pointCoord2;          // Barycentric coordinate relative to vertex 2.
+    float pointCoord3;          // Barycentric coordinate relative to vertex 3.
+    vec3 point;                 // Intersection point.
+    MeshTriIndex meshTriIndex;  // Index of intersected tri.
 };
 
 
@@ -28,15 +32,15 @@ public:
             Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box) :
-        _root{}, _inodes{}, _leaves{}, _preprocessedTriRanges{preprocessedTriRanges}, _preprocessedTris{preprocessedTris}
+        _root{}, _inodes{}, _leaves{}
     {
-        auto const approxLeaves = static_cast<std::size_t>(
-            std::ceil(preprocessedTris.size() / static_cast<double>(Leaf::MAX_TRIS)));
+        auto const approxLeaves = (preprocessedTris.size() + Leaf::MAX_TRIS - 1) / Leaf::MAX_TRIS;
         _leaves.reserve(approxLeaves);
         auto const approxInodes = std::max<std::size_t>(approxLeaves, 1) - 1;
         _inodes.reserve(approxInodes);
 
-        _root = _createNode(vertexPositions, vertexRanges, tris, triRanges, _inodes, _leaves, box, 0);
+        _root = _createNode(vertexPositions, vertexRanges, tris, triRanges, preprocessedTris, preprocessedTriRanges,
+            box, _inodes, _leaves, 0);
     }
 
     template<SurfaceConsideration Surfaces>
@@ -45,30 +49,46 @@ public:
             Line const& line;
             Span<INode const> inodes;
             Span<Leaf const> leaves;
-            Span<TriRange const> preprocessedTriRanges;
-            Span<PreprocessedTri const> preprocessedTris;
             float tMin;
 
             std::optional<LineMeshIntersection> visitLeaf(BoundingBox const& box, Leaf const& leaf) const {
-                LineMeshIntersection nearestIntersection{{INFINITY}};
-                bool hasIntersection = false;
                 assert(leaf.triCount > 0);
+
+                std::array<LineTrisIntersection, Leaf::MAX_TRI_BLOCKS> intersections;
+                auto const blockCount = (leaf.triCount + 7u) / 8u;
+                assert(blockCount > 0);
                 for (unsigned i = 0; ;) {
-                    auto const& meshTriIndex = leaf.tris[i];
-                    auto const& triRange = preprocessedTriRanges[meshTriIndex.mesh];
-                    auto const& tri = preprocessedTris[triRange][meshTriIndex.tri];
-                    if (auto const intersection = lineTriIntersection<Surfaces>(line, tri, tMin, nearestIntersection.t)) {
-                        auto const point = line(intersection->t);
-                        auto const inBox = point.x >= box.min.x && point.x <= box.max.x
-                                        && point.y >= box.min.y && point.y <= box.max.y
-                                        && point.z >= box.min.z && point.z <= box.max.z;
-                        if (inBox) {
-                            nearestIntersection = {*intersection, meshTriIndex};
-                            hasIntersection = true;
+                    intersections[i] = lineTrisIntersection<Surfaces>(line, leaf.tris[i]);
+                    ++i;
+                    if (i >= blockCount) {
+                        break;
+                    }
+                }
+
+                LineMeshIntersection nearestIntersection{INFINITY};
+                bool hasIntersection = false;
+                for (unsigned triIndex = 0; ;) {
+                    auto const blockIndex = triIndex / 8;
+                    auto const i = triIndex % 8;
+                    auto const& blockIntersections = intersections[blockIndex];
+                    if (blockIntersections.exists.m256i_u32[i]) {
+                        auto const t = blockIntersections.t.m256_f32[i];
+                        if (t < nearestIntersection.t && t >= tMin) {
+                            auto const point = line(t);
+                            auto const inBox = point.x >= box.min.x && point.x <= box.max.x
+                                            && point.y >= box.min.y && point.y <= box.max.y
+                                            && point.z >= box.min.z && point.z <= box.max.z;
+                            if (inBox) {
+                                nearestIntersection = {
+                                    t, blockIntersections.pointCoord2.m256_f32[i],
+                                    blockIntersections.pointCoord3.m256_f32[i],
+                                    point, leaf.triIndices[triIndex]};
+                                hasIntersection = true;
+                            }
                         }
                     }
-                    ++i;
-                    if (i >= leaf.triCount) {
+                    ++triIndex;
+                    if (triIndex >= leaf.triCount) {
                         break;
                     }
                 }
@@ -118,9 +138,7 @@ public:
             }
         };
 
-        return Traverser{
-            line, readOnlySpan(_inodes), readOnlySpan(_leaves), _preprocessedTriRanges, _preprocessedTris, tMin
-        }.visitNode(_root);
+        return Traverser{line, readOnlySpan(_inodes), readOnlySpan(_leaves), tMin}.visitNode(_root);
     }
 
 private:
@@ -139,20 +157,21 @@ private:
 
     struct Leaf {
         constexpr inline static std::uint8_t MAX_TRIS = 32;
+        constexpr inline static std::uint8_t MAX_TRI_BLOCKS = (MAX_TRIS + 7) / 8;
 
-        std::array<MeshTriIndex, MAX_TRIS> tris;
+        std::array<PreprocessedTriBlock, MAX_TRI_BLOCKS> tris;
+        std::array<MeshTriIndex, MAX_TRIS> triIndices;
         std::uint8_t triCount;
     };
 
     Node _root;
     std::vector<INode> _inodes;
     std::vector<Leaf> _leaves;
-    Span<TriRange const> _preprocessedTriRanges;
-    Span<PreprocessedTri const> _preprocessedTris;
 
     static Node _createNode(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
             Span<MeshTri const> tris, PermutedSpan<TriRange const, MaterialIndex> triRanges,
-            std::vector<INode>& inodes, std::vector<Leaf>& leaves, BoundingBox const& box,
+            Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
+            BoundingBox const& box, std::vector<INode>& inodes, std::vector<Leaf>& leaves,
             std::uint8_t divisionAxis = 0) {
         assert(vertexRanges.size() == triRanges.size());
         assert(divisionAxis < 3);
@@ -160,13 +179,15 @@ private:
         {
             auto const instanceCount = intCast<MeshIndex>(vertexRanges.size());
             bool subdivide = false;
-            std::array<MeshTriIndex, Leaf::MAX_TRIS> trisInBox{};
+            std::array<PreprocessedTri, Leaf::MAX_TRIS> trisInBox{};
+            std::array<MeshTriIndex, Leaf::MAX_TRIS> triIndicesInBox{};
             std::uint8_t inBoxCount = 0;
-            for (MeshIndex instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex) {
+            for (MeshIndex instanceIndex = 0; instanceIndex < instanceCount && !subdivide; ++instanceIndex) {
                 auto const instanceTris = tris[triRanges[instanceIndex]];
                 auto const instanceVertexPositions = vertexPositions[vertexRanges[instanceIndex]];
+                auto const instancePreprocessedTris = preprocessedTris[preprocessedTriRanges[instanceIndex]];
                 auto const triCount = intCast<TriIndex>(instanceTris.size());
-                for (TriIndex triIndex = 0; triIndex < triCount; ++triIndex) {
+                for (TriIndex triIndex = 0; triIndex < triCount && !subdivide; ++triIndex) {
                     auto const& meshTri = instanceTris[triIndex];
                     Tri const tri{
                         instanceVertexPositions[meshTri.v1],
@@ -174,12 +195,14 @@ private:
                         instanceVertexPositions[meshTri.v3]
                     };
                     if (triIntersectsBox(tri, box)) {
-                        if (inBoxCount >= Leaf::MAX_TRIS) {
-                            subdivide = true;
-                            break;
+                        if (inBoxCount < Leaf::MAX_TRIS) {
+                            trisInBox[inBoxCount] = instancePreprocessedTris[triIndex];
+                            triIndicesInBox[inBoxCount] = {instanceIndex, triIndex};
+                            ++inBoxCount;
                         }
-                        trisInBox[inBoxCount] = {instanceIndex, triIndex};
-                        ++inBoxCount;
+                        else {
+                            subdivide = true;
+                        }
                     }
                 }
             }
@@ -187,8 +210,41 @@ private:
                 if (inBoxCount == 0) {
                     return {box, 0};
                 }
-                leaves.push_back({trisInBox, inBoxCount});
-                return {box, -intCast<std::int32_t>(leaves.size())};
+                else {
+                    auto const blockCount = (inBoxCount + 7u) / 8u;
+                    std::array<PreprocessedTriBlock, Leaf::MAX_TRI_BLOCKS> triBlocks{};
+                    for (unsigned i = 0; i < blockCount; ++i) {
+                        auto const offset = i * 8;
+                        triBlocks[i] = {
+                            Vec3_8::fromVec3(
+                                trisInBox[offset].normal, trisInBox[offset + 1].normal,
+                                trisInBox[offset + 2].normal, trisInBox[offset + 3].normal,
+                                trisInBox[offset + 4].normal, trisInBox[offset + 5].normal,
+                                trisInBox[offset + 6].normal, trisInBox[offset + 7].normal
+                            ),
+                            Vec3_8::fromVec3(
+                                trisInBox[offset].v1, trisInBox[offset + 1].v1,
+                                trisInBox[offset + 2].v1, trisInBox[offset + 3].v1,
+                                trisInBox[offset + 4].v1, trisInBox[offset + 5].v1,
+                                trisInBox[offset + 6].v1, trisInBox[offset + 7].v1
+                            ),
+                            Vec3_8::fromVec3(
+                                trisInBox[offset].v1ToV2, trisInBox[offset + 1].v1ToV2,
+                                trisInBox[offset + 2].v1ToV2, trisInBox[offset + 3].v1ToV2,
+                                trisInBox[offset + 4].v1ToV2, trisInBox[offset + 5].v1ToV2,
+                                trisInBox[offset + 6].v1ToV2, trisInBox[offset + 7].v1ToV2
+                            ),
+                            Vec3_8::fromVec3(
+                                trisInBox[offset].v1ToV3, trisInBox[offset + 1].v1ToV3,
+                                trisInBox[offset + 2].v1ToV3, trisInBox[offset + 3].v1ToV3,
+                                trisInBox[offset + 4].v1ToV3, trisInBox[offset + 5].v1ToV3,
+                                trisInBox[offset + 6].v1ToV3, trisInBox[offset + 7].v1ToV3
+                            )
+                        };
+                    }
+                    leaves.push_back({triBlocks, triIndicesInBox, inBoxCount});
+                    return {box, -intCast<std::int32_t>(leaves.size())};
+                }
             }
         }
 
@@ -218,10 +274,10 @@ private:
         auto const index = inodes.size();
         // Insert inode before recursing so they're in traversal order.
         inodes.push_back({{}, {}, divisionAxis});
-        inodes[index].negativeChild =
-            _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, negativeSubbox, nextDivisionAxis);
-        inodes[index].positiveChild =
-            _createNode(vertexPositions, vertexRanges, tris, triRanges, inodes, leaves, positiveSubbox, nextDivisionAxis);
+        inodes[index].negativeChild = _createNode(vertexPositions, vertexRanges, tris, triRanges, preprocessedTris,
+            preprocessedTriRanges, negativeSubbox, inodes, leaves, nextDivisionAxis);
+        inodes[index].positiveChild = _createNode(vertexPositions, vertexRanges, tris, triRanges, preprocessedTris,
+            preprocessedTriRanges, positiveSubbox, inodes, leaves, nextDivisionAxis);
         return {box, intCast<std::int32_t>(index + 1)};
     }
 };

@@ -69,7 +69,7 @@ inline vec3 rayTrace(RayTraceData const& data, Line const& ray, FastRNG& randomE
     auto const pointCoord1 = 1.0f - pointCoord2 - pointCoord3;
     auto normal = vertexNormals[tri.v1] * pointCoord1 + vertexNormals[tri.v2] * pointCoord2
         + vertexNormals[tri.v3] * pointCoord3;
-    auto const point = ray(intersection->t);
+    auto const& point = intersection->point;
     auto const outgoing = -ray.direction;
 
     // Lighting model based on this paper:

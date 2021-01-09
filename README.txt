@@ -17,7 +17,7 @@ Overview:
 
 Requirements:
 	- C++ 17.
-	- CPU with AVX2 (can be omitted by editing the compilation flags in CMakeLists.txt).
+	- CPU with AVX2.
 	- Threading Building Blocks (TBB), if on a Linux system. Required for std::execution.
 
 

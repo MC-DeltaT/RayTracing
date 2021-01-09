@@ -3,6 +3,7 @@
 #include "basic_types.hpp"
 #include "utility/math.hpp"
 #include "utility/span.hpp"
+#include "utility/vector.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -11,6 +12,7 @@
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
+#include <immintrin.h>
 
 
 // Axis-aligned bounding box.
@@ -48,16 +50,25 @@ struct PreprocessedTri {
 };
 
 
+struct PreprocessedTriBlock {
+    Vec3_8 normal;
+    Vec3_8 v1;
+    Vec3_8 v1ToV2;
+    Vec3_8 v1ToV3;
+};
+
+
 enum class SurfaceConsideration {
     ALL,
     FRONT_ONLY
 };
 
 
-struct LineTriIntersection {
-    float t;                // Line equation parameter.
-    float pointCoord2;      // Barycentric coordinate relative to vertex 2.
-    float pointCoord3;      // Barycentric coordinate relative to vertex 3.
+struct LineTrisIntersection {
+    __m256i exists;         // Indicates if specific intersection occurred.
+    __m256 t;               // Line equation parameter.
+    __m256 pointCoord2;     // Barycentric coordinate relative to vertex 2.
+    __m256 pointCoord3;     // Barycentric coordinate relative to vertex 3.
 };
 
 
@@ -80,63 +91,42 @@ inline BoundingBox computeBoundingBox(Span<vec3 const> points) {
 
 
 template<SurfaceConsideration Surfaces>
-std::optional<LineTriIntersection> lineTriIntersection(Line const& line, PreprocessedTri const& tri, float tMin,
-    float tMax);
+LineTrisIntersection lineTrisIntersection(Line line, PreprocessedTriBlock tris);
+
 
 template<>
-inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsideration::FRONT_ONLY>
-        (Line const& line, PreprocessedTri const& tri, float tMin, float tMax) {
-    assert(isUnitVector(line.direction));
-
-    auto const negDet = glm::dot(line.direction, tri.normal);
-    if (negDet > -1e-6f) {
-        return std::nullopt;
-    }
+inline LineTrisIntersection lineTrisIntersection<SurfaceConsideration::ALL>(Line line, PreprocessedTriBlock tris) {
+    auto const negDet = dot(tris.normal, line.direction);
     auto const invDet = -1.0f / negDet;
-    // det and invDet guaranteed to be > 0
-    auto const AO = line.origin - tri.v1;
-    auto const t = glm::dot(AO, tri.normal) * invDet;
-    if (t > tMax || t < tMin) {
-        return std::nullopt;
-    }
-    auto const DAO = glm::cross(AO, line.direction);
-    auto u = glm::dot(tri.v1ToV3, DAO);
-    auto v = glm::dot(tri.v1ToV2, DAO);
-    if (u >= 0.0f && v <= 0.0f && v - u >= negDet) {
-        u *= invDet;
-        v *= -invDet;
-        return {{t, u, v}};
-    }
-    else {
-        return std::nullopt;
-    }
+    auto const AO  = line.origin - tris.v1;
+    auto const t = dot(AO, tris.normal) * invDet;
+    auto const DAO = cross(AO, line.direction);
+    auto const u = dot(tris.v1ToV3, DAO) * invDet;
+    auto const v = -dot(tris.v1ToV2, DAO) * invDet;
+    auto const detCheck = abs(negDet) >= 1e-6f;
+    auto const uCheck = u >= 0.0f;
+    auto const vCheck = v >= 0.0f;
+    auto const uvCheck = u + v <= 1.0f;
+    auto const intersection = detCheck & uCheck & vCheck & uvCheck;
+    return {intersection, t, u, v};
 }
 
-template<>
-inline std::optional<LineTriIntersection> lineTriIntersection<SurfaceConsideration::ALL>
-        (Line const& line, PreprocessedTri const& tri, float tMin, float tMax) {
-    assert(isUnitVector(line.direction));
 
-    auto negDet = glm::dot(line.direction, tri.normal);
-    if (std::abs(negDet) < 1e-6f) {
-        return std::nullopt;
-    }
+template<>
+inline LineTrisIntersection lineTrisIntersection<SurfaceConsideration::FRONT_ONLY>(Line line, PreprocessedTriBlock tris) {
+    auto const negDet = dot(tris.normal, line.direction);
     auto const invDet = -1.0f / negDet;
-    auto const AO  = line.origin - tri.v1;
-    auto const t = glm::dot(AO, tri.normal) * invDet;
-    if (t > tMax || t < tMin) {
-        return std::nullopt;
-    }
-    auto const DAO = glm::cross(AO, line.direction);
-    auto const u = glm::dot(tri.v1ToV3, DAO) * invDet;
-    auto v = glm::dot(tri.v1ToV2, DAO) * invDet;
-    if (u >= 0.0f && v <= 0.0f && u - v <= 1.0f) {
-        v = -v;
-        return {{t, u, v}};
-    }
-    else {
-        return std::nullopt;
-    }
+    auto const AO  = line.origin - tris.v1;
+    auto const t = dot(AO, tris.normal) * invDet;
+    auto const DAO = cross(AO, line.direction);
+    auto const u = dot(tris.v1ToV3, DAO) * invDet;
+    auto const v = -dot(tris.v1ToV2, DAO) * invDet;
+    auto const detCheck = negDet <= -1e-6f;
+    auto const uCheck = u >= 0.0f;
+    auto const vCheck = v >= 0.0f;
+    auto const uvCheck = u + v <= 1.0f;
+    auto const intersection = detCheck & uCheck & vCheck & uvCheck;
+    return {intersection, t, u, v};
 }
 
 

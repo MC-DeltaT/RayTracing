@@ -104,7 +104,7 @@ void medianFilter(Span<vec3 const> image, std::size_t imageWidth, Span<vec3> res
             std::nth_element(rs.begin(), rs.begin() + middle, rs.end());
             std::nth_element(gs.begin(), gs.begin() + middle, gs.end());
             std::nth_element(bs.begin(), bs.begin() + middle, bs.end());
-            result[i * imageWidth + j] = {rs.at(middle), gs.at(middle), bs.at(middle)};
+            result[i * imageWidth + j] = {rs[middle], gs[middle], bs[middle]};
         }
     }
 }

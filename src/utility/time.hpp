@@ -32,7 +32,7 @@ public:
                 break;
             }
         }
-        stream << value << UNITS.at(i);
+        stream << value << UNITS[i];
         return stream;
     }
 

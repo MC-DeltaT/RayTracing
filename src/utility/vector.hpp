@@ -11,9 +11,7 @@
 struct FVec8 {
     __m256 value;
 
-    FVec8() :
-        value{}
-    {}
+    FVec8() = default;
 
     explicit FVec8(__m256 value) :
         value{value}
@@ -54,9 +52,7 @@ struct FVec8 {
 struct U32Vec8 {
     __m256i value;
 
-    U32Vec8() :
-        value{}
-    {}
+    U32Vec8() = default;
 
     explicit U32Vec8(__m256i value) :
         value{value}

@@ -12,6 +12,7 @@
 #include "utility/span.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -77,20 +78,27 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         return f0 + oneMinusF0 * iPow(1.0f - hDotO, 5);
     };
 
-    vec3 outgoingLight{0.0f, 0.0f, 0.0f};
-    vec3 lightWeight{1.0f, 1.0f, 1.0f};
-    for (unsigned bounce = 0; ; ++bounce) {
+    std::array<PreprocessedMaterial, RAY_BOUNCE_LIMIT + 1> materials;
+    std::array<float, RAY_BOUNCE_LIMIT> nDotOs;
+    std::array<float, RAY_BOUNCE_LIMIT> nDotIs;
+    std::array<float, RAY_BOUNCE_LIMIT> nDotHs;
+    std::array<float, RAY_BOUNCE_LIMIT> hDotOs;
+    unsigned depth = 0;
+    while (true) {
         auto const intersection = data.bspTree.lineTriNearestIntersection<SurfaceConsideration::FRONT_ONLY>(
             ray, RAY_INTERSECTION_T_MIN);
         if (!intersection) {
             break;
         }
 
+        auto const bounce = depth;
+
         auto const& material = data.materials[intersection->meshTriIndex.mesh];
+        materials[bounce] = material;
 
-        outgoingLight += lightWeight * material.emission;
+        ++depth;
 
-        if (bounce == RAY_BOUNCE_LIMIT) {
+        if (bounce >= RAY_BOUNCE_LIMIT) {
             break;
         }
 
@@ -125,7 +133,7 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         auto const phi = randomEngine.angle();
         auto const sinPhi = std::sin(phi);
         auto const cosPhi = std::cos(phi);
-        
+
         auto const halfway = cosTheta * normal + sinTheta * (cosPhi * perpendicular1 + sinPhi * perpendicular2);
 
         auto hDotO = glm::dot(halfway, outgoing);
@@ -133,29 +141,59 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         assert(isUnitVector(incident));
         auto const nDotI = glm::dot(normal, incident);
 
-        if (nDotI > 0.0f) {
-            // Cook-Torrance BRDF.
-            assert(hDotO > 0.0f);
-            auto const& nDotH = cosTheta;
-            auto const& hDotI = hDotO;
-            auto const specularD = ndf(material.ndfAlphaSq, nDotH);
-            auto const specularF = fresnel(material.f0, material.oneMinusF0, hDotO);
-            // ray probability = specularD * nDotH / (4 * hDotO)
-            auto const diffuse = 4.0f * (1.0f - specularF) * material.adjustedColour * nDotI * hDotO / (specularD * nDotH);
-            auto localWeight = diffuse;
-            if (nDotO > 0.0f) {
-                auto const specularG = geometry(material.geometryAlphaSq, nDotI, nDotO, hDotI, hDotO);
-                auto const specular = specularG * specularF * hDotO / (nDotO * nDotH);
-                localWeight += specular;
-            }
-            lightWeight *= localWeight;
+        nDotOs[bounce] = nDotO;
+        nDotIs[bounce] = nDotI;
+        nDotHs[bounce] = cosTheta;
+        hDotOs[bounce] = hDotO;
 
+        if (nDotI > 0.0f) {
             ray = {point, incident};
         }
         else {
-            // lightWeight becomes 0.
+            // Weight of incident light becomes 0.
             break;
         }
+    }
+
+    if (depth == 0) {
+        return {0.0f, 0.0f, 0.0f};
+    }
+
+    assert(depth <= RAY_BOUNCE_LIMIT + 1);
+
+    std::array<vec3, RAY_BOUNCE_LIMIT + 1> lightWeights;
+    for (unsigned i = 0; i < depth - 1; ) {
+        auto const& material = materials[i];
+        auto const nDotO = nDotOs[i];
+        auto const nDotI = nDotIs[i];
+        auto const nDotH = nDotHs[i];
+        auto const hDotO = hDotOs[i];
+
+        // Cook-Torrance BRDF.
+        assert(hDotO > 0.0f);
+        auto const& hDotI = hDotO;
+        auto const specularD = ndf(material.ndfAlphaSq, nDotH);
+        auto const specularF = fresnel(material.f0, material.oneMinusF0, hDotO);
+        // ray probability = specularD * nDotH / (4 * hDotO)
+        auto const diffuse = ((1.0f - specularF) * material.adjustedColour) * (4.0f * nDotI * hDotO / (specularD * nDotH));
+        auto weight = diffuse;
+        if (nDotO > 0.0f) {
+            auto const specularG = geometry(material.geometryAlphaSq, nDotI, nDotO, hDotI, hDotO);
+            auto const specular = specularF * (specularG * hDotO / (nDotO * nDotH));
+            weight += specular;
+        }
+
+        ++i;
+        lightWeights[i] = weight;
+    }
+    lightWeights[0] = {1.0f, 1.0f, 1.0f};
+    for (unsigned i = 1; i < depth; ++i) {
+        lightWeights[i] *= lightWeights[i - 1];
+    }
+
+    vec3 outgoingLight{0.0f, 0.0f, 0.0f};
+    for (unsigned i = 0; i < depth; ++i) {
+        outgoingLight += lightWeights[i] * materials[i].emission;
     }
 
     // TODO? light transmission

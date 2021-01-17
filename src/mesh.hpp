@@ -33,9 +33,9 @@ struct MeshTriIndex {
 
 
 struct MeshTransform {
-    vec3 position{0.0f, 0.0f, 0.0f};
+    PackedFVec3 position{0.0f, 0.0f, 0.0f};
     glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
-    vec3 scale{1.0f, 1.0f, 1.0f};
+    PackedFVec3 scale{1.0f, 1.0f, 1.0f};
 
     glm::mat4x3 matrix() const {
         glm::mat4x3 m{glm::mat3_cast(orientation)};
@@ -49,8 +49,8 @@ struct MeshTransform {
 
 
 struct InstantiatedMeshes {
-    std::vector<vec3> vertexPositions;
-    std::vector<vec3> vertexNormals;
+    std::vector<PackedFVec3> vertexPositions;
+    std::vector<PackedFVec3> vertexNormals;
     std::vector<VertexRange> vertexRanges;      // Maps from mesh instance index to range of vertices.
 };
 
@@ -60,7 +60,7 @@ inline glm::mat3 normalTransform(glm::mat4 modelTransform) {
 }
 
 
-inline void instantiateMeshes(Span<vec3 const> vertexPositions, Span<vec3 const> vertexNormals,
+inline void instantiateMeshes(Span<PackedFVec3 const> vertexPositions, Span<PackedFVec3 const> vertexNormals,
         Span<VertexRange const> vertexRanges, Span<MeshTransform const> instanceTransforms,
         Span<MeshIndex const> instanceMeshes, InstantiatedMeshes& result) {
     assert(vertexPositions.size() == vertexNormals.size());
@@ -107,7 +107,7 @@ inline void instantiateMeshes(Span<vec3 const> vertexPositions, Span<vec3 const>
 }
 
 
-inline void preprocessTris(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+inline void preprocessTris(Span<PackedFVec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
         Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
         std::vector<PreprocessedTri>& resultTris, std::vector<TriRange>& resultTriRanges) {
     assert(vertexRanges.size() == triRanges.size());

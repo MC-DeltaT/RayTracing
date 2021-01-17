@@ -12,13 +12,13 @@
 
 
 struct Meshes {
-    std::vector<vec3> vertexPositions;
-    std::vector<vec3> vertexNormals;
+    std::vector<PackedFVec3> vertexPositions;
+    std::vector<PackedFVec3> vertexNormals;
     std::vector<MeshTri> tris;
     std::vector<VertexRange> vertexRanges;
     std::vector<TriRange> triRanges;
 
-    Meshes(std::initializer_list<std::tuple<std::vector<vec3>, std::vector<vec3>,
+    Meshes(std::initializer_list<std::tuple<std::vector<PackedFVec3>, std::vector<PackedFVec3>,
         std::vector<MeshTri>>> meshes);
 };
 

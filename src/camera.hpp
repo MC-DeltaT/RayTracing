@@ -12,26 +12,26 @@
 
 
 struct Camera {
-    vec3 position;
+    PackedFVec3 position;
     glm::quat orientation;
     float fov;
 
-    vec3 forward() const {
-        return orientation * vec3{0.0f, 0.0f, 1.0f};
+    PackedFVec3 forward() const {
+        return orientation * PackedFVec3{0.0f, 0.0f, 1.0f};
     }
 
-    vec3 down() const {
-        return orientation * vec3{0.0f, -1.0f, 0.0f};
+    PackedFVec3 down() const {
+        return orientation * PackedFVec3{0.0f, -1.0f, 0.0f};
     }
 
-    vec3 right() const {
-        return orientation * vec3{-1.0f, 0.0f, 0.0f};
+    PackedFVec3 right() const {
+        return orientation * PackedFVec3{-1.0f, 0.0f, 0.0f};
     }
 };
 
 
-inline glm::mat3 pixelToRayTransform(vec3 const& forward, vec3 const& down, vec3 const& right, float fov,
-        unsigned imageWidth, unsigned imageHeight) {
+inline glm::mat3 pixelToRayTransform(PackedFVec3 const& forward, PackedFVec3 const& down, PackedFVec3 const& right,
+        float fov, unsigned imageWidth, unsigned imageHeight) {
     assert(isUnitVector(forward));
     assert(isUnitVector(down));
     assert(isUnitVector(right));

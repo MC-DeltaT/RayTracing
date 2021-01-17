@@ -5,7 +5,7 @@
 #include <cstddef>
 
 
-Meshes::Meshes(std::initializer_list<std::tuple<std::vector<vec3>, std::vector<vec3>,
+Meshes::Meshes(std::initializer_list<std::tuple<std::vector<PackedFVec3>, std::vector<PackedFVec3>,
         std::vector<MeshTri>>> meshes) {
     vertexRanges.reserve(meshes.size());
     triRanges.reserve(meshes.size());

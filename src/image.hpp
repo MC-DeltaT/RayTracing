@@ -10,10 +10,9 @@
 #include <cstddef>
 
 #include <glm/common.hpp>
-#include <glm/vec3.hpp>
 
 
-inline vec3 reinhardToneMap(vec3 const& hdr) {
+inline PackedFVec3 reinhardToneMap(PackedFVec3 const& hdr) {
     return hdr / (1.0f + hdr);
 }
 
@@ -27,7 +26,7 @@ inline float linearToSRGB(float linear) {
     }
 }
 
-inline vec3 linearToSRGB(vec3 const& linear) {
+inline PackedFVec3 linearToSRGB(PackedFVec3 const& linear) {
     return {linearToSRGB(linear.r), linearToSRGB(linear.g), linearToSRGB(linear.b)};
 }
 
@@ -41,17 +40,17 @@ inline float srgbToLinear(float srgb) {
     }
 }
 
-inline vec3 srgbToLinear(vec3 const& srgb) {
+inline PackedFVec3 srgbToLinear(PackedFVec3 const& srgb) {
     return {srgbToLinear(srgb.r), srgbToLinear(srgb.g), srgbToLinear(srgb.b)};
 }
 
 
-inline glm::u8vec3 floatTo8BitUInt(vec3 const& pixel) {
+inline PackedU8Vec3 floatTo8BitUInt(PackedFVec3 const& pixel) {
     return glm::clamp(255.0f * pixel, 0.0f, 255.0f);
 }
 
 
-inline vec3 nanToRed(vec3 const& pixel) {
+inline PackedFVec3 nanToRed(PackedFVec3 const& pixel) {
     if (std::isnan(pixel.r) || std::isnan(pixel.g) || std::isnan(pixel.b)) {
         return {1.0f, 0.0f, 0.0f};
     }
@@ -61,7 +60,7 @@ inline vec3 nanToRed(vec3 const& pixel) {
 }
 
 
-inline vec3 infToGreen(vec3 const& pixel) {
+inline PackedFVec3 infToGreen(PackedFVec3 const& pixel) {
     if (std::isinf(pixel.r) || std::isinf(pixel.g) || std::isinf(pixel.b)) {
         return {0.0f, 1.0f, 0.0f};
     }
@@ -72,7 +71,7 @@ inline vec3 infToGreen(vec3 const& pixel) {
 
 
 template<unsigned Radius>
-void medianFilter(Span<vec3 const> image, std::size_t imageWidth, Span<vec3> result) {
+void medianFilter(Span<PackedFVec3 const> image, std::size_t imageWidth, Span<PackedFVec3> result) {
     assert(image.size() % imageWidth == 0);
     assert(image.data() != result.data());
     assert(image.size() == result.size());

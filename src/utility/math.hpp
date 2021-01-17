@@ -30,14 +30,14 @@ inline bool isNormalised(float val) {
 }
 
 
-inline bool isUnitVector(vec3 const& vec) {
+inline bool isUnitVector(PackedFVec3 const& vec) {
     return std::abs(glm::length(vec) - 1.0f) <= 1e-3f;
 }
 
 
-inline std::pair<vec3, vec3> orthonormalBasis(vec3 const& vec) {
+inline std::pair<PackedFVec3, PackedFVec3> orthonormalBasis(PackedFVec3 const& vec) {
     assert(isUnitVector(vec));
-    vec3 vec2{0.56863665f, -0.77215318f, 0.28360506f};      // Arbitrary unit vector.
+    PackedFVec3 vec2{0.56863665f, -0.77215318f, 0.28360506f};   // Arbitrary unit vector.
     auto dot = glm::dot(vec, vec2);
     // This branch will almost never be taken.
     if (std::abs(1.0f - std::abs(dot)) < 1e-3f) {

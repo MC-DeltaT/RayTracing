@@ -1,13 +1,10 @@
 #pragma once
 
 #include "utility/numeric.hpp"
+#include "utility/vector.hpp"
 
 #include <cstdint>
 
-#include <glm/vec3.hpp>
-
-
-using vec3 = glm::vec3;
 
 using VertexIndex = std::uint16_t;
 using TriIndex = std::uint16_t;

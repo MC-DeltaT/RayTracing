@@ -21,14 +21,14 @@ struct LineMeshIntersection {
     float t;                    // Line equation parameter.
     float pointCoord2;          // Barycentric coordinate relative to vertex 2.
     float pointCoord3;          // Barycentric coordinate relative to vertex 3.
-    vec3 point;                 // Intersection point.
+    PackedFVec3 point;          // Intersection point.
     MeshTriIndex meshTriIndex;  // Index of intersected tri.
 };
 
 
 class BSPTree {
 public:
-    BSPTree(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+    BSPTree(Span<PackedFVec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
             Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box) :
@@ -56,7 +56,6 @@ public:
 
                 std::array<LineTrisIntersection, Leaf::MAX_TRI_BLOCKS> intersections;
                 auto const blockCount = (leaf.triCount + 7u) / 8u;
-                assert(blockCount > 0);
                 for (unsigned i = 0; ;) {
                     intersections[i] = lineTrisIntersection<Surfaces>(line, leaf.tris[i]);
                     ++i;
@@ -168,7 +167,7 @@ private:
     std::vector<INode> _inodes;
     std::vector<Leaf> _leaves;
 
-    static Node _createNode(Span<vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+    static Node _createNode(Span<PackedFVec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
             Span<MeshTri const> tris, PermutedSpan<TriRange const, MaterialIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box, std::vector<INode>& inodes, std::vector<Leaf>& leaves,
@@ -216,30 +215,30 @@ private:
                     for (unsigned i = 0; i < blockCount; ++i) {
                         auto const offset = i * 8;
                         triBlocks[i] = {
-                            Vec3_8::fromVec3(
+                            {
                                 trisInBox[offset].normal, trisInBox[offset + 1].normal,
                                 trisInBox[offset + 2].normal, trisInBox[offset + 3].normal,
                                 trisInBox[offset + 4].normal, trisInBox[offset + 5].normal,
                                 trisInBox[offset + 6].normal, trisInBox[offset + 7].normal
-                            ),
-                            Vec3_8::fromVec3(
+                            },
+                            {
                                 trisInBox[offset].v1, trisInBox[offset + 1].v1,
                                 trisInBox[offset + 2].v1, trisInBox[offset + 3].v1,
                                 trisInBox[offset + 4].v1, trisInBox[offset + 5].v1,
                                 trisInBox[offset + 6].v1, trisInBox[offset + 7].v1
-                            ),
-                            Vec3_8::fromVec3(
+                            },
+                            {
                                 trisInBox[offset].v1ToV2, trisInBox[offset + 1].v1ToV2,
                                 trisInBox[offset + 2].v1ToV2, trisInBox[offset + 3].v1ToV2,
                                 trisInBox[offset + 4].v1ToV2, trisInBox[offset + 5].v1ToV2,
                                 trisInBox[offset + 6].v1ToV2, trisInBox[offset + 7].v1ToV2
-                            ),
-                            Vec3_8::fromVec3(
+                            },
+                            {
                                 trisInBox[offset].v1ToV3, trisInBox[offset + 1].v1ToV3,
                                 trisInBox[offset + 2].v1ToV3, trisInBox[offset + 3].v1ToV3,
                                 trisInBox[offset + 4].v1ToV3, trisInBox[offset + 5].v1ToV3,
                                 trisInBox[offset + 6].v1ToV3, trisInBox[offset + 7].v1ToV3
-                            )
+                            }
                         };
                     }
                     leaves.push_back({triBlocks, triIndicesInBox, inBoxCount});

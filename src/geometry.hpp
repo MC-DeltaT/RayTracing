@@ -3,7 +3,6 @@
 #include "basic_types.hpp"
 #include "utility/math.hpp"
 #include "utility/span.hpp"
-#include "utility/vector.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -16,44 +15,44 @@
 
 // Axis-aligned bounding box.
 struct BoundingBox {
-    vec3 min;
-    vec3 max;
+    PackedFVec3 min;
+    PackedFVec3 max;
 };
 
 
 struct Line {
     // p = origin + t*direction
 
-    vec3 origin;
-    vec3 direction;
+    PackedFVec3 origin;
+    PackedFVec3 direction;
 
-    vec3 operator()(float t) const {
+    PackedFVec3 operator()(float t) const {
         return origin + t * direction;
     }
 };
 
 
 struct Tri {
-    vec3 v1;
-    vec3 v2;
-    vec3 v3;
+    PackedFVec3 v1;
+    PackedFVec3 v2;
+    PackedFVec3 v3;
 };
 
 
 // Tri preprocessed for line intersection calculation.
 struct PreprocessedTri {
-    vec3 normal;
-    vec3 v1;
-    vec3 v1ToV3;
-    vec3 v1ToV2;
+    PackedFVec3 normal;
+    PackedFVec3 v1;
+    PackedFVec3 v1ToV3;
+    PackedFVec3 v1ToV2;
 };
 
 
 struct PreprocessedTriBlock {
-    Vec3_8 normal;
-    Vec3_8 v1;
-    Vec3_8 v1ToV2;
-    Vec3_8 v1ToV3;
+    FVec3_8 normal;
+    FVec3_8 v1;
+    FVec3_8 v1ToV2;
+    FVec3_8 v1ToV3;
 };
 
 
@@ -79,7 +78,7 @@ inline PreprocessedTri preprocessTri(Tri const& tri) {
 }
 
 
-inline BoundingBox computeBoundingBox(Span<vec3 const> points) {
+inline BoundingBox computeBoundingBox(Span<PackedFVec3 const> points) {
     BoundingBox box{{INFINITY, INFINITY, INFINITY}, {-INFINITY, -INFINITY, -INFINITY}};
     for (auto const& point : points) {
         box.min = glm::min(box.min, point);
@@ -219,9 +218,9 @@ inline bool triIntersectsBox(Tri tri, BoundingBox const& box) {
     };
 
     // Translate tri and box such that box centre is at origin. Simplifies/optimises checks of the box vertices.
-    vec3 boxRadius;
+    PackedFVec3 boxRadius;
     boxRadius.x = (box.max.x - box.min.x) / 2.0f;
-    vec3 boxCentre;
+    PackedFVec3 boxCentre;
     boxCentre.x = box.min.x + boxRadius.x;
     tri.v1.x -= boxCentre.x;
     tri.v2.x -= boxCentre.x;

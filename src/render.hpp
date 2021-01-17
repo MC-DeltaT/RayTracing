@@ -25,7 +25,7 @@
 
 struct RayTraceData {
     BSPTree const& bspTree;
-    Span<vec3 const> vertexNormals;                     // Vertex normals for instantiated meshes.
+    Span<PackedFVec3 const> vertexNormals;              // Vertex normals for instantiated meshes.
     Span<VertexRange const> vertexRanges;               // Maps from model index to range of vertices.
     Span<MeshTri const> tris;                           // Tris for base meshes (not instantiated meshes).
     PermutedSpan<TriRange const, MeshIndex> triRanges;  // Maps from model index to range of tris.
@@ -36,7 +36,7 @@ struct RayTraceData {
 struct RenderData {
     unsigned imageWidth;
     unsigned imageHeight;
-    vec3 cameraPosition;
+    PackedFVec3 cameraPosition;
     glm::mat3 pixelToRayTransform;
     RayTraceData rayTraceData;
 };
@@ -47,7 +47,7 @@ constexpr inline static unsigned RAY_BOUNCE_LIMIT = 4;
 constexpr inline static float RAY_INTERSECTION_T_MIN = 1e-3f;   // Intersections with line param < this are discarded.
 
 
-inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) {
+inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) {
     // Lighting model based on this paper:
     // B. Walter, S. R. Marschner, H. Li, and K. E. Torrance, "Microfacet models for refraction through rough surfaces", 2007.
 
@@ -71,14 +71,21 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
     };
 
     // Fresnel-Schlick equation.
-    auto const fresnel = [](vec3 f0, vec3 oneMinusF0, float hDotO) {
+    auto const fresnel = [](FastFVec3 f0, FastFVec3 oneMinusF0, float hDotO) {
         assert(hDotO >= 0.0f);
         // Sometimes hDotO is very slightly > 1 due to FP error, which technically invalidates this formula.
         // But this error becomes extremely small when raised to the 5th power, so it doesn't have much effect.
-        return f0 + oneMinusF0 * iPow(1.0f - hDotO, 5);
+        return fma(oneMinusF0, FastFVec3{iPow(1.0f - hDotO, 5)}, f0);
     };
 
-    std::array<PreprocessedMaterial, RAY_BOUNCE_LIMIT + 1> materials;
+    constexpr auto RAY_DEPTH_LIMIT = RAY_BOUNCE_LIMIT + 1;
+
+    std::array<float, RAY_BOUNCE_LIMIT> ndfAlphaSqs;
+    std::array<float, RAY_BOUNCE_LIMIT> geometryAlphaSqs;
+    std::array<FastFVec3, RAY_BOUNCE_LIMIT> f0s;
+    std::array<FastFVec3, RAY_BOUNCE_LIMIT> oneMinusF0s;
+    std::array<FastFVec3, RAY_BOUNCE_LIMIT> adjustedColours;
+    std::array<FastFVec3, RAY_DEPTH_LIMIT> emissions;
     std::array<float, RAY_BOUNCE_LIMIT> nDotOs;
     std::array<float, RAY_BOUNCE_LIMIT> nDotIs;
     std::array<float, RAY_BOUNCE_LIMIT> nDotHs;
@@ -94,7 +101,7 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         auto const bounce = depth;
 
         auto const& material = data.materials[intersection->meshTriIndex.mesh];
-        materials[bounce] = material;
+        emissions[bounce] = material.emission;
 
         ++depth;
 
@@ -141,6 +148,11 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         assert(isUnitVector(incident));
         auto const nDotI = glm::dot(normal, incident);
 
+        ndfAlphaSqs[bounce] = material.ndfAlphaSq;
+        geometryAlphaSqs[bounce] = material.geometryAlphaSq;
+        f0s[bounce] = material.f0;
+        oneMinusF0s[bounce] = material.oneMinusF0;
+        adjustedColours[bounce] = material.adjustedColour;
         nDotOs[bounce] = nDotO;
         nDotIs[bounce] = nDotI;
         nDotHs[bounce] = cosTheta;
@@ -159,11 +171,16 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         return {0.0f, 0.0f, 0.0f};
     }
 
-    assert(depth <= RAY_BOUNCE_LIMIT + 1);
+    assert(depth <= RAY_DEPTH_LIMIT);
 
-    std::array<vec3, RAY_BOUNCE_LIMIT + 1> lightWeights;
+    std::array<FastFVec3, RAY_DEPTH_LIMIT> lightWeights;
+    lightWeights[0] = {1.0f, 1.0f, 1.0f};
     for (unsigned i = 0; i < depth - 1; ) {
-        auto const& material = materials[i];
+        auto const ndfAlphaSq = ndfAlphaSqs[i];
+        auto const geometryAlphaSq = geometryAlphaSqs[i];
+        auto const f0 = f0s[i];
+        auto const oneMinusF0 = oneMinusF0s[i];
+        auto const adjustedColour = adjustedColours[i];
         auto const nDotO = nDotOs[i];
         auto const nDotI = nDotIs[i];
         auto const nDotH = nDotHs[i];
@@ -172,13 +189,13 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         // Cook-Torrance BRDF.
         assert(hDotO > 0.0f);
         auto const& hDotI = hDotO;
-        auto const specularD = ndf(material.ndfAlphaSq, nDotH);
-        auto const specularF = fresnel(material.f0, material.oneMinusF0, hDotO);
+        auto const specularD = ndf(ndfAlphaSq, nDotH);
+        auto const specularF = fresnel(f0, oneMinusF0, hDotO);
         // ray probability = specularD * nDotH / (4 * hDotO)
-        auto const diffuse = ((1.0f - specularF) * material.adjustedColour) * (4.0f * nDotI * hDotO / (specularD * nDotH));
+        auto const diffuse = ((1.0f - specularF) * adjustedColour) * (4.0f * nDotI * hDotO / (specularD * nDotH));
         auto weight = diffuse;
         if (nDotO > 0.0f) {
-            auto const specularG = geometry(material.geometryAlphaSq, nDotI, nDotO, hDotI, hDotO);
+            auto const specularG = geometry(geometryAlphaSq, nDotI, nDotO, hDotI, hDotO);
             auto const specular = specularF * (specularG * hDotO / (nDotO * nDotH));
             weight += specular;
         }
@@ -186,14 +203,13 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
         ++i;
         lightWeights[i] = weight;
     }
-    lightWeights[0] = {1.0f, 1.0f, 1.0f};
     for (unsigned i = 1; i < depth; ++i) {
         lightWeights[i] *= lightWeights[i - 1];
     }
 
-    vec3 outgoingLight{0.0f, 0.0f, 0.0f};
+    FastFVec3 outgoingLight{0.0f, 0.0f, 0.0f};
     for (unsigned i = 0; i < depth; ++i) {
-        outgoingLight += lightWeights[i] * materials[i].emission;
+        outgoingLight = fma(lightWeights[i], emissions[i], outgoingLight);
     }
 
     // TODO? light transmission
@@ -202,22 +218,22 @@ inline vec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) 
 }
 
 
-inline void render(RenderData const& data, Span<vec3> image) {
+inline void render(RenderData const& data, Span<PackedFVec3> image) {
     assert(image.size() == data.imageWidth * data.imageHeight);
     std::transform(std::execution::par, IndexIterator<>{0}, IndexIterator<>{image.size()}, image.begin(),
             [&data](std::size_t index) {
         auto const pixelX = index % data.imageWidth;
         auto const pixelY = index / data.imageWidth;
         auto& randomEngine = ::randomEngine;    // Access random engine here to force static initialisation.
-        vec3 colour{0.0f, 0.0f, 0.0f};
+        FastFVec3 colour{0.0f, 0.0f, 0.0f};
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
             auto const sampleX = pixelX + randomEngine.unitFloatOpen();
             auto const sampleY = pixelY + randomEngine.unitFloatOpen();
-            auto const rayDirection = glm::normalize(data.pixelToRayTransform * vec3{sampleX, sampleY, 1.0f});
+            auto const rayDirection = glm::normalize(data.pixelToRayTransform * PackedFVec3{sampleX, sampleY, 1.0f});
             Line const ray{data.cameraPosition, rayDirection};
             colour += rayTrace(data.rayTraceData, ray, randomEngine);
         }
         colour /= PIXEL_SAMPLE_RATE;
-        return colour;
+        return colour.pack();
     });
 }

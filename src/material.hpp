@@ -20,9 +20,8 @@ struct Material {
 struct PreprocessedMaterial {
     float ndfAlphaSq;
     float geometryAlphaSq;
-    FastFVec3 f0;
-    FastFVec3 oneMinusF0;
-    FastFVec3 adjustedColour;
+    PackedFVec3 f0;
+    PackedFVec3 adjustedColour;
     FastFVec3 emission;
 };
 
@@ -35,10 +34,9 @@ inline PreprocessedMaterial preprocessMaterial(Material const& material) {
 
     assert(isNormalised(material.metalness));
     assert(isNormalised(material.colour.r) && isNormalised(material.colour.g) && isNormalised(material.colour.b));
-    auto const oneMinusMetalness = 1.0f - FastFVec3{material.metalness};
-    auto const f0 = oneMinusMetalness * 0.04f + FastFVec3{material.metalness} * FastFVec3{material.colour};
-    auto const oneMinusF0 = 1.0f - f0;
-    auto const adjustedColour = oneMinusMetalness * FastFVec3{material.colour} / glm::pi<float>();
+    auto const oneMinusMetalness = 1.0f - material.metalness;
+    auto const f0 = oneMinusMetalness * 0.04f + material.metalness * material.colour;
+    auto const adjustedColour = oneMinusMetalness * material.colour / glm::pi<float>();
 
-    return {ndfAlphaSq, geometryAlphaSq, f0, oneMinusF0, adjustedColour, FastFVec3{material.emission}};
+    return {ndfAlphaSq, geometryAlphaSq, f0, adjustedColour, FastFVec3{material.emission}};
 }

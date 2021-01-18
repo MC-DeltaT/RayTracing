@@ -17,7 +17,7 @@ constexpr T square(T val) {
 
 template<typename T>
 constexpr T iPow(T val, unsigned power) {
-    T result = 1;
+    T result{1};
     for (unsigned i = 0; i < power; ++i) {
         result *= val;
     }

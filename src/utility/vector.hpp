@@ -44,19 +44,19 @@ struct FVec4 {
     }
 
     FVec4& operator+=(FVec4 rhs) {
-        FVec4 operator+(FVec4 a, FVec4 b);
+        FVec4 operator+(FVec4, FVec4);
         *this = *this + rhs;
         return *this;
     }
 
     FVec4& operator*=(FVec4 rhs) {
-        FVec4 operator*(FVec4 a, FVec4 b);
+        FVec4 operator*(FVec4, FVec4);
         *this = *this * rhs;
         return *this;
     }
 
     FVec4& operator/=(float rhs) {
-        FVec4 operator/(FVec4 a, float b);
+        FVec4 operator/(FVec4, float);
         *this = *this / rhs;
         return *this;
     }
@@ -112,7 +112,7 @@ struct FastFVec3 {
         return *this;
     }
 
-    FastFVec3 operator/=(float rhs) {
+    FastFVec3& operator/=(float rhs) {
         data /= rhs;
         return *this;
     }
@@ -144,6 +144,12 @@ struct FVec8 {
     float const& operator[](unsigned index) const {
         assert(index < 8);
         return data.m256_f32[index];
+    }
+
+    FVec8& operator*=(FVec8 rhs) {
+        FVec8 operator*(FVec8, FVec8);
+        *this = *this * rhs;
+        return *this;
     }
 
     static FVec8 zero() {
@@ -197,12 +203,38 @@ struct FVec3_8 {
         x{x}, y{y}, z{z}
     {}
 
+    explicit FVec3_8(FVec8 v) :
+        x{v}, y{v}, z{v}
+    {}
+
     FVec3_8(PackedFVec3 v0, PackedFVec3 v1, PackedFVec3 v2, PackedFVec3 v3,
             PackedFVec3 v4, PackedFVec3 v5, PackedFVec3 v6, PackedFVec3 v7) :
         x{v0.x, v1.x, v2.x, v3.x, v4.x, v5.x, v6.x, v7.x},
         y{v0.y, v1.y, v2.y, v3.y, v4.y, v5.y, v6.y, v7.y},
         z{v0.z, v1.z, v2.z, v3.z, v4.z, v5.z, v6.z, v7.z}
     {}
+
+    void insert(unsigned index, PackedFVec3 v) {
+        x[index] = v.x;
+        y[index] = v.y;
+        z[index] = v.z;
+    }
+
+    PackedFVec3 extract(unsigned index) const {
+        return {
+            x[index],
+            y[index],
+            z[index]
+        };
+    }
+
+    static FVec3_8 zero() {
+        return {
+            FVec8::zero(),
+            FVec8::zero(),
+            FVec8::zero()
+        };
+    }
 };
 
 
@@ -216,6 +248,22 @@ inline FastFVec3 operator+(FastFVec3 a, FastFVec3 b) {
 
 inline FVec8 operator+(FVec8 a, FVec8 b) {
     return FVec8{_mm256_add_ps(a.data, b.data)};
+}
+
+inline FVec8 operator+(FVec8 a, float b) {
+    return a + FVec8{b};
+}
+
+inline FVec8 operator+(float a, FVec8 b) {
+    return FVec8{a} + b;
+}
+
+inline FVec3_8 operator+(FVec3_8 a, FVec3_8 b) {
+    return {
+        a.x + b.x,
+        a.y + b.y,
+        a.z + b.z
+    };
 }
 
 
@@ -235,8 +283,20 @@ inline FVec8 operator-(FVec8 a, FVec8 b) {
     return FVec8{_mm256_sub_ps(a.data, b.data)};
 }
 
+inline FVec8 operator-(FVec8 a, float b) {
+    return a - FVec8{b};
+}
+
 inline FVec8 operator-(float a, FVec8 b) {
     return FVec8{a} - b;
+}
+
+inline FVec3_8 operator-(float a, FVec3_8 b) {
+    return {
+        a - b.x,
+        a - b.y,
+        a - b.z
+    };
 }
 
 inline FVec3_8 operator-(PackedFVec3 a, FVec3_8 b) {
@@ -248,8 +308,8 @@ inline FVec3_8 operator-(PackedFVec3 a, FVec3_8 b) {
 }
 
 
-inline FVec8 operator-(FVec8 x) {
-    return FVec8::zero() - x;
+inline FVec8 operator-(FVec8 v) {
+    return FVec8::zero() - v;
 }
 
 
@@ -277,7 +337,11 @@ inline FVec8 operator*(FVec8 a, float b) {
     return a * FVec8{b};
 }
 
-inline FVec3_8 operator*(FVec3_8 a, PackedFVec3 b) {
+inline FVec8 operator*(float a, FVec8 b) {
+    return FVec8{a} * b;
+}
+
+inline FVec3_8 operator*(FVec3_8 a, FVec3_8 b) {
     return {
         a.x * b.x,
         a.y * b.y,
@@ -285,7 +349,15 @@ inline FVec3_8 operator*(FVec3_8 a, PackedFVec3 b) {
     };
 }
 
-inline FVec3_8 operator*(FVec3_8 a, FVec3_8 b) {
+inline FVec3_8 operator*(FVec3_8 a, FVec8 b) {
+    return {
+        a.x * b,
+        a.y * b,
+        a.z * b
+    };
+}
+
+inline FVec3_8 operator*(FVec3_8 a, PackedFVec3 b) {
     return {
         a.x * b.x,
         a.y * b.y,
@@ -325,31 +397,85 @@ inline U32Vec8 operator<=(FVec8 a, float b) {
 }
 
 
+inline U32Vec8 operator>(FVec8 a, float b) {
+    return U32Vec8{_mm256_castps_si256(_mm256_cmp_ps(a.data, FVec8{b}.data, _CMP_GT_OQ))};
+}
+
+
 inline U32Vec8 operator>=(FVec8 a, float b) {
     return U32Vec8{_mm256_castps_si256(_mm256_cmp_ps(a.data, FVec8{b}.data, _CMP_GE_OQ))};
 }
 
 
-inline FVec8 abs(FVec8 x) {
-    return FVec8{_mm256_and_ps(x.data, _mm256_castsi256_ps(_mm256_srli_epi32(_mm256_set1_epi32(-1), 1)))};
+inline FVec8 abs(FVec8 v) {
+    auto const mask = _mm256_castsi256_ps(_mm256_set_epi32(
+        0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF,
+        0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF));
+    return FVec8{_mm256_and_ps(v.data, mask)};
 }
 
 
+inline FVec8 sqrt(FVec8 v) {
+    return FVec8{_mm256_sqrt_ps(v.data)};
+}
+
+
+// a*b + c
 inline FVec4 fma(FVec4 a, FVec4 b, FVec4 c) {
     return FVec4{_mm_fmadd_ps(a.data, b.data, c.data)};
 }
 
+// a*b + c
 inline FastFVec3 fma(FastFVec3 a, FastFVec3 b, FastFVec3 c) {
     return FastFVec3{fma(a.data, b.data, c.data)};
 }
 
+// a*b + c
 inline FVec8 fma(FVec8 a, FVec8 b, FVec8 c) {
     return FVec8{_mm256_fmadd_ps(a.data, b.data, c.data)};
 }
 
+// a*b + c
+inline FVec3_8 fma(FVec3_8 a, FVec3_8 b, FVec3_8 c) {
+    return {
+        fma(a.x, b.x, c.x),
+        fma(a.y, b.y, c.y),
+        fma(a.z, b.z, c.z)
+    };
+}
 
+
+// -a*b + c
+inline FVec8 fnma(FVec8 a, FVec8 b, FVec8 c) {
+    return FVec8{_mm256_fnmadd_ps(a.data, b.data, c.data)};
+}
+
+// -a*b + c
+inline FVec3_8 fnma(FVec3_8 a, FVec3_8 b, FVec3_8 c) {
+    return {
+        fnma(a.x, b.x, c.x),
+        fnma(a.y, b.y, c.y),
+        fnma(a.z, b.z, c.z)
+    };
+}
+
+
+// a*b - c
 inline FVec8 fms(FVec8 a, FVec8 b, FVec8 c) {
     return FVec8{_mm256_fmsub_ps(a.data, b.data, c.data)};
+}
+
+
+inline FVec8 conditional(U32Vec8 cond, FVec8 trueVal, FVec8 falseVal) {
+    return FVec8{_mm256_blendv_ps(falseVal.data, trueVal.data, _mm256_castsi256_ps(cond.data))};
+}
+
+inline FVec3_8 conditional(U32Vec8 cond, FVec3_8 trueVal, FVec3_8 falseVal) {
+    return {
+        conditional(cond, trueVal.x, falseVal.x),
+        conditional(cond, trueVal.y, falseVal.y),
+        conditional(cond, trueVal.z, falseVal.z)
+    };
 }
 
 

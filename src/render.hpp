@@ -43,7 +43,6 @@ struct RenderData {
 
 
 constexpr inline static unsigned PIXEL_SAMPLE_RATE = 2048;
-constexpr inline static unsigned RAY_BOUNCE_LIMIT = 4;
 constexpr inline static float RAY_INTERSECTION_T_MIN = 1e-3f;   // Intersections with line param < this are discarded.
 
 
@@ -52,44 +51,46 @@ inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEng
     // B. Walter, S. R. Marschner, H. Li, and K. E. Torrance, "Microfacet models for refraction through rough surfaces", 2007.
 
     // GGX microfacet distribution function.
-    auto const ndf = [](float alphaSq, float nDotH) {
-        assert(nDotH > 0.0f);
+    auto const ndf = [](FVec8 alphaSq, FVec8 nDotH) {
+        // assert(nDotH > 0.0f);
         auto const nDotHSq = square(nDotH);
-        auto const tanThetaSq = (1.0f - nDotHSq) / nDotHSq;
+        auto const tanThetaSq = 1.0f / nDotHSq - 1.0f;
         return alphaSq / (glm::pi<float>() * square(nDotHSq) * square(alphaSq + tanThetaSq));
     };
 
     // GGX geometry function + Smith's method.
-    auto const geometry = [](float alphaSq, float nDotI, float nDotO, float hDotI, float hDotO) {
-        auto const partial = [alphaSq](float nDotR) {
+    auto const geometry = [](FVec8 alphaSq, FVec8 nDotI, FVec8 nDotO, FVec8 hDotI, FVec8 hDotO) {
+        auto const partial = [alphaSq](FVec8 nDotR) {
             auto const nDotRSq = square(nDotR);
-            return 2.0f / (1.0f + std::sqrt(1.0f + alphaSq * (1.0f - nDotRSq) / nDotRSq));
+            return 1.0f + sqrt(1.0f + alphaSq / nDotRSq - alphaSq);
         };
 
-        assert(nDotI > 0.0f && nDotO > 0.0f && hDotI > 0.0f && hDotO == hDotI);
-        return partial(nDotI) * partial(nDotO);
+        // assert(nDotI > 0.0f && nDotO > 0.0f && hDotI > 0.0f && hDotO == hDotI);
+        return 4.0f / (partial(nDotI) * partial(nDotO));
     };
 
     // Fresnel-Schlick equation.
-    auto const fresnel = [](FastFVec3 f0, FastFVec3 oneMinusF0, float hDotO) {
-        assert(hDotO >= 0.0f);
+    auto const fresnel = [](FVec3_8 f0, FVec8 hDotO) {
+        // assert(hDotO >= 0.0f);
         // Sometimes hDotO is very slightly > 1 due to FP error, which technically invalidates this formula.
         // But this error becomes extremely small when raised to the 5th power, so it doesn't have much effect.
-        return fma(oneMinusF0, FastFVec3{iPow(1.0f - hDotO, 5)}, f0);
+        auto const tmp = FVec3_8{iPow(1.0f - hDotO, 5)};
+        return fnma(f0, tmp, f0 + tmp);
     };
 
+    // TODO? allow for >8 bounces
+    constexpr unsigned RAY_BOUNCE_LIMIT = 8;        // Must be <= 8 !
     constexpr auto RAY_DEPTH_LIMIT = RAY_BOUNCE_LIMIT + 1;
 
-    std::array<float, RAY_BOUNCE_LIMIT> ndfAlphaSqs;
-    std::array<float, RAY_BOUNCE_LIMIT> geometryAlphaSqs;
-    std::array<FastFVec3, RAY_BOUNCE_LIMIT> f0s;
-    std::array<FastFVec3, RAY_BOUNCE_LIMIT> oneMinusF0s;
-    std::array<FastFVec3, RAY_BOUNCE_LIMIT> adjustedColours;
+    FVec8 ndfAlphaSqs{};
+    FVec8 geometryAlphaSqs{};
+    FVec3_8 f0s{};
+    FVec3_8 adjustedColours{};
     std::array<FastFVec3, RAY_DEPTH_LIMIT> emissions;
-    std::array<float, RAY_BOUNCE_LIMIT> nDotOs;
-    std::array<float, RAY_BOUNCE_LIMIT> nDotIs;
-    std::array<float, RAY_BOUNCE_LIMIT> nDotHs;
-    std::array<float, RAY_BOUNCE_LIMIT> hDotOs;
+    FVec8 nDotOs{};
+    FVec8 nDotIs{};
+    FVec8 nDotHs{};
+    FVec8 hDotOs{};
     unsigned depth = 0;
     while (true) {
         auto const intersection = data.bspTree.lineTriNearestIntersection<SurfaceConsideration::FRONT_ONLY>(
@@ -150,9 +151,8 @@ inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEng
 
         ndfAlphaSqs[bounce] = material.ndfAlphaSq;
         geometryAlphaSqs[bounce] = material.geometryAlphaSq;
-        f0s[bounce] = material.f0;
-        oneMinusF0s[bounce] = material.oneMinusF0;
-        adjustedColours[bounce] = material.adjustedColour;
+        f0s.insert(bounce, material.f0);
+        adjustedColours.insert(bounce, material.adjustedColour);
         nDotOs[bounce] = nDotO;
         nDotIs[bounce] = nDotI;
         nDotHs[bounce] = cosTheta;
@@ -173,37 +173,23 @@ inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEng
 
     assert(depth <= RAY_DEPTH_LIMIT);
 
+    // Cook-Torrance BRDF.
+    // assert(hDotO > 0.0f);
+    auto const& hDotIs = hDotOs;
+    auto const specularFs = fresnel(f0s, hDotOs);
+    auto const specularDs = ndf(ndfAlphaSqs, nDotHs);
+    auto const specularGs = geometry(geometryAlphaSqs, nDotIs, nDotOs, hDotIs, hDotOs);
+    // ray probability = specularD * nDotH / (4 * hDotO)
+    auto const diffuses = fnma(specularFs, adjustedColours, adjustedColours) * (4.0f * nDotIs * hDotOs / (specularDs * nDotHs));
+    auto const speculars = specularFs * (specularGs * hDotOs / (nDotOs * nDotHs));
+    auto const weights = diffuses + conditional(nDotOs > 0.0f, speculars, FVec3_8::zero());
+
     std::array<FastFVec3, RAY_DEPTH_LIMIT> lightWeights;
     lightWeights[0] = {1.0f, 1.0f, 1.0f};
-    for (unsigned i = 0; i < depth - 1; ) {
-        auto const ndfAlphaSq = ndfAlphaSqs[i];
-        auto const geometryAlphaSq = geometryAlphaSqs[i];
-        auto const f0 = f0s[i];
-        auto const oneMinusF0 = oneMinusF0s[i];
-        auto const adjustedColour = adjustedColours[i];
-        auto const nDotO = nDotOs[i];
-        auto const nDotI = nDotIs[i];
-        auto const nDotH = nDotHs[i];
-        auto const hDotO = hDotOs[i];
-
-        // Cook-Torrance BRDF.
-        assert(hDotO > 0.0f);
-        auto const& hDotI = hDotO;
-        auto const specularD = ndf(ndfAlphaSq, nDotH);
-        auto const specularF = fresnel(f0, oneMinusF0, hDotO);
-        // ray probability = specularD * nDotH / (4 * hDotO)
-        auto const diffuse = ((1.0f - specularF) * adjustedColour) * (4.0f * nDotI * hDotO / (specularD * nDotH));
-        auto weight = diffuse;
-        if (nDotO > 0.0f) {
-            auto const specularG = geometry(geometryAlphaSq, nDotI, nDotO, hDotI, hDotO);
-            auto const specular = specularF * (specularG * hDotO / (nDotO * nDotH));
-            weight += specular;
-        }
-
-        ++i;
-        lightWeights[i] = weight;
+    for (unsigned i = 0; i < RAY_BOUNCE_LIMIT; ++i) {
+        lightWeights[i + 1] = FastFVec3{weights.extract(i)};
     }
-    for (unsigned i = 1; i < depth; ++i) {
+    for (unsigned i = 1; i < lightWeights.size(); ++i) {
         lightWeights[i] *= lightWeights[i - 1];
     }
 

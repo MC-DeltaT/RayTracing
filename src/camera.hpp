@@ -1,6 +1,5 @@
 #pragma once
 
-#include "basic_types.hpp"
 #include "utility/math.hpp"
 
 #include <cassert>
@@ -12,26 +11,26 @@
 
 
 struct Camera {
-    PackedFVec3 position;
+    glm::vec3 position;
     glm::quat orientation;
     float fov;
 
-    PackedFVec3 forward() const {
-        return orientation * PackedFVec3{0.0f, 0.0f, 1.0f};
+    glm::vec3 forward() const {
+        return orientation * glm::vec3{0.0f, 0.0f, 1.0f};
     }
 
-    PackedFVec3 down() const {
-        return orientation * PackedFVec3{0.0f, -1.0f, 0.0f};
+    glm::vec3 down() const {
+        return orientation * glm::vec3{0.0f, -1.0f, 0.0f};
     }
 
-    PackedFVec3 right() const {
-        return orientation * PackedFVec3{-1.0f, 0.0f, 0.0f};
+    glm::vec3 right() const {
+        return orientation * glm::vec3{-1.0f, 0.0f, 0.0f};
     }
 };
 
 
-inline glm::mat3 pixelToRayTransform(PackedFVec3 const& forward, PackedFVec3 const& down, PackedFVec3 const& right,
-        float fov, unsigned imageWidth, unsigned imageHeight) {
+inline glm::mat3 pixelToRayTransform(glm::vec3 forward, glm::vec3 down, glm::vec3 right, float fov, unsigned imageWidth,
+        unsigned imageHeight) {
     assert(isUnitVector(forward));
     assert(isUnitVector(down));
     assert(isUnitVector(right));

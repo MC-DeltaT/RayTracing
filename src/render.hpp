@@ -1,7 +1,7 @@
 #pragma once
 
-#include "basic_types.hpp"
 #include "bsp.hpp"
+#include "index_types.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
 #include "utility/index_iterator.hpp"
@@ -10,6 +10,7 @@
 #include "utility/permuted_span.hpp"
 #include "utility/random.hpp"
 #include "utility/span.hpp"
+#include "utility/vectorised.hpp"
 
 #include <algorithm>
 #include <array>
@@ -21,11 +22,12 @@
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/mat3x3.hpp>
+#include <glm/vec3.hpp>
 
 
 struct RayTraceData {
     BSPTree const& bspTree;
-    Span<PackedFVec3 const> vertexNormals;              // Vertex normals for instantiated meshes.
+    Span<glm::vec3 const> vertexNormals;                // Vertex normals for instantiated meshes.
     Span<VertexRange const> vertexRanges;               // Maps from model index to range of vertices.
     Span<MeshTri const> tris;                           // Tris for base meshes (not instantiated meshes).
     PermutedSpan<TriRange const, MeshIndex> triRanges;  // Maps from model index to range of tris.
@@ -36,7 +38,7 @@ struct RayTraceData {
 struct RenderData {
     unsigned imageWidth;
     unsigned imageHeight;
-    PackedFVec3 cameraPosition;
+    glm::vec3 cameraPosition;
     glm::mat3 pixelToRayTransform;
     RayTraceData rayTraceData;
 };
@@ -204,7 +206,7 @@ inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEng
 }
 
 
-inline void render(RenderData const& data, Span<PackedFVec3> image) {
+inline void render(RenderData const& data, Span<glm::vec3> image) {
     assert(image.size() == data.imageWidth * data.imageHeight);
     std::transform(std::execution::par, IndexIterator<>{0}, IndexIterator<>{image.size()}, image.begin(),
             [&data](std::size_t index) {
@@ -215,11 +217,11 @@ inline void render(RenderData const& data, Span<PackedFVec3> image) {
         for (unsigned i = 0; i < PIXEL_SAMPLE_RATE; ++i) {
             auto const sampleX = pixelX + randomEngine.unitFloatOpen();
             auto const sampleY = pixelY + randomEngine.unitFloatOpen();
-            auto const rayDirection = glm::normalize(data.pixelToRayTransform * PackedFVec3{sampleX, sampleY, 1.0f});
+            auto const rayDirection = glm::normalize(data.pixelToRayTransform * glm::vec3{sampleX, sampleY, 1.0f});
             Line const ray{data.cameraPosition, rayDirection};
             colour += rayTrace(data.rayTraceData, ray, randomEngine);
         }
         colour /= PIXEL_SAMPLE_RATE;
-        return colour.pack();
+        return colour.toGLMVec3();
     });
 }

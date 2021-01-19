@@ -1,7 +1,7 @@
-#include "basic_types.hpp"
 #include "bsp.hpp"
 #include "geometry.hpp"
 #include "image.hpp"
+#include "index_types.hpp"
 #include "mesh.hpp"
 #include "render.hpp"
 #include "scene.hpp"
@@ -19,6 +19,7 @@
 
 #include <glm/gtc/constants.hpp>
 #include <glm/trigonometric.hpp>
+#include <glm/vec3.hpp>
 
 
 static std::vector<MeshTri> quadMeshTris(unsigned quadCount) {
@@ -36,7 +37,7 @@ static std::vector<MeshTri> quadMeshTris(unsigned quadCount) {
 }
 
 
-std::tuple<std::vector<PackedFVec3>, std::vector<PackedFVec3>, std::vector<MeshTri>> plane() {
+std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> plane() {
     return {
         {
             {-0.5f, 0.0f, -0.5f},   // Rear left
@@ -55,7 +56,7 @@ std::tuple<std::vector<PackedFVec3>, std::vector<PackedFVec3>, std::vector<MeshT
 }
 
 
-std::tuple<std::vector<PackedFVec3>, std::vector<PackedFVec3>, std::vector<MeshTri>> cube() {
+std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> cube() {
     return {
         {
             // Front
@@ -124,13 +125,13 @@ int main() {
     constexpr unsigned IMAGE_WIDTH = 1920;
     constexpr unsigned IMAGE_HEIGHT = 1080;
 
-    std::vector<PackedFVec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
-    std::vector<PackedFVec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
-    std::vector<PackedU8Vec3> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<glm::vec3> renderBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<glm::vec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
+    std::vector<glm::u8vec3> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
     Scene scene{
         {   // Camera
-            {9.0f, 8.0f, 16.0f}, PackedFVec3{0.3f, -2.6f, 0.0f}, glm::radians(45.0f)
+            {9.0f, 8.0f, 16.0f}, glm::vec3{0.3f, -2.6f, 0.0f}, glm::radians(45.0f)
         },
         {plane(), cube()},   // Meshes
         {   // Materials
@@ -140,8 +141,8 @@ int main() {
         {   // Models
             {   // Mesh instance transforms
                 {{2.0f, 0.0f, 2.0f}, {1.0f, 0.0f, 0.0f, 0.0f}, {16.0f, 1.0f, 16.0f}},                   // Floor
-                {{0.0f, 5.0f, -6.0f}, PackedFVec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}}, // Mirror 1
-                {{-6.0f, 5.0f, 0.0f}, PackedFVec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}} // Mirror 2
+                {{0.0f, 5.0f, -6.0f}, glm::vec3{glm::half_pi<float>(), 0.0f, 0.0f}, {20.0f, 1.0f, 10.0f}},  // Mirror 1
+                {{-6.0f, 5.0f, 0.0f}, glm::vec3{0.0f, 0.0f, -glm::half_pi<float>()}, {10.0f, 1.0f, 20.0f}}  // Mirror 2
             },
             {   // Model mesh indices
                 0, 0, 0
@@ -156,7 +157,7 @@ int main() {
 
     // Generate RGB cube models.
     {
-        constexpr PackedFVec3 POSITION{0.0f, 2.5f, 0.0f};
+        constexpr glm::vec3 POSITION{0.0f, 2.5f, 0.0f};
         constexpr float SCALE = 4.0f;
         constexpr unsigned DIVISOR = 3;
         constexpr float SUBSCALE = 0.75f;
@@ -166,15 +167,15 @@ int main() {
                 auto const yFract = y / static_cast<float>(DIVISOR - 1);
                 for (unsigned z = 0; z < DIVISOR; ++z) {
                     auto const zFract = z / static_cast<float>(DIVISOR - 1);
-                    auto const colour = srgbToLinear(PackedFVec3{xFract, yFract, zFract});
+                    auto const colour = srgbToLinear(glm::vec3{xFract, yFract, zFract});
                     scene.materials.push_back({colour, 0.5f, 0.5f, colour});
-                    auto const position = PackedFVec3{
+                    auto const position = glm::vec3{
                         (xFract - 0.5f) * (SCALE - SCALE / DIVISOR),
                         (yFract - 0.5f) * (SCALE - SCALE / DIVISOR),
                         (zFract - 0.5f) * (SCALE - SCALE / DIVISOR)
                     } + POSITION;
                     constexpr glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
-                    constexpr PackedFVec3 scale{SUBSCALE * SCALE / DIVISOR};
+                    constexpr glm::vec3 scale{SUBSCALE * SCALE / DIVISOR};
                     scene.models.meshTransforms.push_back({position, orientation, scale});
                     scene.models.meshes.push_back(1);
                     scene.models.materials.push_back(intCast<MaterialIndex>(scene.materials.size() - 1));
@@ -230,7 +231,7 @@ int main() {
     auto const postprocessBeginTime = std::chrono::high_resolution_clock::now();
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), reinhardToneMap);
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(),
-        static_cast<PackedFVec3(*)(PackedFVec3 const&)>(linearToSRGB));
+        static_cast<glm::vec3(*)(glm::vec3)>(linearToSRGB));
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), nanToRed);
     std::transform(renderBuffer.cbegin(), renderBuffer.cend(), renderBuffer.begin(), infToGreen);
     std::copy(renderBuffer.cbegin(), renderBuffer.cend(), filteredBuffer.begin());

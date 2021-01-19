@@ -1,7 +1,7 @@
 #pragma once
 
-#include "basic_types.hpp"
 #include "geometry.hpp"
+#include "index_types.hpp"
 #include "mesh.hpp"
 #include "utility/numeric.hpp"
 #include "utility/permuted_span.hpp"
@@ -16,19 +16,21 @@
 #include <optional>
 #include <vector>
 
+#include <glm/vec3.hpp>
+
 
 struct LineMeshIntersection {
     float t;                    // Line equation parameter.
     float pointCoord2;          // Barycentric coordinate relative to vertex 2.
     float pointCoord3;          // Barycentric coordinate relative to vertex 3.
-    PackedFVec3 point;          // Intersection point.
+    glm::vec3 point;            // Intersection point.
     MeshTriIndex meshTriIndex;  // Index of intersected tri.
 };
 
 
 class BSPTree {
 public:
-    BSPTree(Span<PackedFVec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+    BSPTree(Span<glm::vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
             Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box) :
@@ -167,7 +169,7 @@ private:
     std::vector<INode> _inodes;
     std::vector<Leaf> _leaves;
 
-    static Node _createNode(Span<PackedFVec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
+    static Node _createNode(Span<glm::vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
             Span<MeshTri const> tris, PermutedSpan<TriRange const, MaterialIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box, std::vector<INode>& inodes, std::vector<Leaf>& leaves,

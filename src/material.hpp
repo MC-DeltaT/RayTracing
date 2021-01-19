@@ -1,27 +1,27 @@
 #pragma once
 
-#include "basic_types.hpp"
 #include "utility/math.hpp"
+#include "utility/vectorised.hpp"
 
 #include <cassert>
 
 #include <glm/gtc/constants.hpp>
-
+#include <glm/vec3.hpp>
 
 
 struct Material {
-    PackedFVec3 colour;
+    glm::vec3 colour;
     float roughness;        // In range (0, 1].
     float metalness;        // In range [0, 1].
-    PackedFVec3 emission;   // Colour that is inherently emitted.
+    glm::vec3 emission;     // Colour that is inherently emitted.
 };
 
 
 struct PreprocessedMaterial {
     float ndfAlphaSq;
     float geometryAlphaSq;
-    PackedFVec3 f0;
-    PackedFVec3 adjustedColour;
+    glm::vec3 f0;
+    glm::vec3 adjustedColour;
     FastFVec3 emission;
 };
 

@@ -1,12 +1,11 @@
 #pragma once
 
-#include "../basic_types.hpp"
-
 #include <cassert>
 #include <cmath>
 #include <utility>
 
 #include <glm/geometric.hpp>
+#include <glm/vec3.hpp>
 
 
 template<typename T>
@@ -30,14 +29,14 @@ inline bool isNormalised(float val) {
 }
 
 
-inline bool isUnitVector(PackedFVec3 const& vec) {
+inline bool isUnitVector(glm::vec3 vec) {
     return std::abs(glm::length(vec) - 1.0f) <= 1e-3f;
 }
 
 
-inline std::pair<PackedFVec3, PackedFVec3> orthonormalBasis(PackedFVec3 const& vec) {
+inline std::pair<glm::vec3, glm::vec3> orthonormalBasis(glm::vec3 vec) {
     assert(isUnitVector(vec));
-    PackedFVec3 vec2{0.56863665f, -0.77215318f, 0.28360506f};   // Arbitrary unit vector.
+    glm::vec3 vec2{0.56863665f, -0.77215318f, 0.28360506f};     // Arbitrary unit vector.
     auto dot = glm::dot(vec, vec2);
     // This branch will almost never be taken.
     if (std::abs(1.0f - std::abs(dot)) < 1e-3f) {

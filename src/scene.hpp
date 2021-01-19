@@ -1,8 +1,8 @@
 #pragma once
 
-#include "basic_types.hpp"
 #include "camera.hpp"
 #include "geometry.hpp"
+#include "index_types.hpp"
 #include "material.hpp"
 #include "mesh.hpp"
 
@@ -10,15 +10,17 @@
 #include <tuple>
 #include <vector>
 
+#include <glm/vec3.hpp>
+
 
 struct Meshes {
-    std::vector<PackedFVec3> vertexPositions;
-    std::vector<PackedFVec3> vertexNormals;
+    std::vector<glm::vec3> vertexPositions;
+    std::vector<glm::vec3> vertexNormals;
     std::vector<MeshTri> tris;
     std::vector<VertexRange> vertexRanges;
     std::vector<TriRange> triRanges;
 
-    Meshes(std::initializer_list<std::tuple<std::vector<PackedFVec3>, std::vector<PackedFVec3>,
+    Meshes(std::initializer_list<std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>,
         std::vector<MeshTri>>> meshes);
 };
 

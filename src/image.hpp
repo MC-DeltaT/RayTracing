@@ -1,6 +1,5 @@
 #pragma once
 
-#include "basic_types.hpp"
 #include "utility/math.hpp"
 #include "utility/span.hpp"
 
@@ -10,9 +9,10 @@
 #include <cstddef>
 
 #include <glm/common.hpp>
+#include <glm/vec3.hpp>
 
 
-inline PackedFVec3 reinhardToneMap(PackedFVec3 const& hdr) {
+inline glm::vec3 reinhardToneMap(glm::vec3 hdr) {
     return hdr / (1.0f + hdr);
 }
 
@@ -26,7 +26,7 @@ inline float linearToSRGB(float linear) {
     }
 }
 
-inline PackedFVec3 linearToSRGB(PackedFVec3 const& linear) {
+inline glm::vec3 linearToSRGB(glm::vec3 linear) {
     return {linearToSRGB(linear.r), linearToSRGB(linear.g), linearToSRGB(linear.b)};
 }
 
@@ -40,17 +40,17 @@ inline float srgbToLinear(float srgb) {
     }
 }
 
-inline PackedFVec3 srgbToLinear(PackedFVec3 const& srgb) {
+inline glm::vec3 srgbToLinear(glm::vec3 srgb) {
     return {srgbToLinear(srgb.r), srgbToLinear(srgb.g), srgbToLinear(srgb.b)};
 }
 
 
-inline PackedU8Vec3 floatTo8BitUInt(PackedFVec3 const& pixel) {
+inline glm::u8vec3 floatTo8BitUInt(glm::vec3 pixel) {
     return glm::clamp(255.0f * pixel, 0.0f, 255.0f);
 }
 
 
-inline PackedFVec3 nanToRed(PackedFVec3 const& pixel) {
+inline glm::vec3 nanToRed(glm::vec3 pixel) {
     if (std::isnan(pixel.r) || std::isnan(pixel.g) || std::isnan(pixel.b)) {
         return {1.0f, 0.0f, 0.0f};
     }
@@ -60,7 +60,7 @@ inline PackedFVec3 nanToRed(PackedFVec3 const& pixel) {
 }
 
 
-inline PackedFVec3 infToGreen(PackedFVec3 const& pixel) {
+inline glm::vec3 infToGreen(glm::vec3 pixel) {
     if (std::isinf(pixel.r) || std::isinf(pixel.g) || std::isinf(pixel.b)) {
         return {0.0f, 1.0f, 0.0f};
     }
@@ -71,7 +71,7 @@ inline PackedFVec3 infToGreen(PackedFVec3 const& pixel) {
 
 
 template<unsigned Radius>
-void medianFilter(Span<PackedFVec3 const> image, std::size_t imageWidth, Span<PackedFVec3> result) {
+void medianFilter(Span<glm::vec3 const> image, std::size_t imageWidth, Span<glm::vec3> result) {
     assert(image.size() % imageWidth == 0);
     assert(image.data() != result.data());
     assert(image.size() == result.size());

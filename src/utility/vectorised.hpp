@@ -1,19 +1,11 @@
 #pragma once
 
-#include "../basic_types.hpp"
-
 #include <cassert>
 #include <cstdint>
 
 #include <glm/vec3.hpp>
 #include <immintrin.h>
 #include <xmmintrin.h>
-
-
-using PackedFVec3 = glm::vec3;
-
-
-using PackedU8Vec3 = glm::u8vec3;
 
 
 struct FVec4 {
@@ -43,24 +35,6 @@ struct FVec4 {
         return data.m128_f32[index];
     }
 
-    FVec4& operator+=(FVec4 rhs) {
-        FVec4 operator+(FVec4, FVec4);
-        *this = *this + rhs;
-        return *this;
-    }
-
-    FVec4& operator*=(FVec4 rhs) {
-        FVec4 operator*(FVec4, FVec4);
-        *this = *this * rhs;
-        return *this;
-    }
-
-    FVec4& operator/=(float rhs) {
-        FVec4 operator/(FVec4, float);
-        *this = *this / rhs;
-        return *this;
-    }
-
     static FVec4 zero() {
         return FVec4{_mm_setzero_ps()};
     }
@@ -76,7 +50,7 @@ struct FastFVec3 {
         data{data}
     {}
 
-    explicit FastFVec3(PackedFVec3 v) :
+    explicit FastFVec3(glm::vec3 v) :
         data{v.x, v.y, v.z, 0.0f}
     {}
 
@@ -88,7 +62,7 @@ struct FastFVec3 {
         data{f}
     {}
 
-    PackedFVec3 pack() {
+    glm::vec3 toGLMVec3() {
         return {data[0], data[1], data[2]};
     }
 
@@ -100,21 +74,6 @@ struct FastFVec3 {
     float const& operator[](unsigned index) const {
         assert(index < 3);
         return data[index];
-    }
-
-    FastFVec3& operator+=(FastFVec3 rhs) {
-        data += rhs.data;
-        return *this;
-    }
-
-    FastFVec3& operator*=(FastFVec3 rhs) {
-        data *= rhs.data;
-        return *this;
-    }
-
-    FastFVec3& operator/=(float rhs) {
-        data /= rhs;
-        return *this;
     }
 };
 
@@ -144,12 +103,6 @@ struct FVec8 {
     float const& operator[](unsigned index) const {
         assert(index < 8);
         return data.m256_f32[index];
-    }
-
-    FVec8& operator*=(FVec8 rhs) {
-        FVec8 operator*(FVec8, FVec8);
-        *this = *this * rhs;
-        return *this;
     }
 
     static FVec8 zero() {
@@ -207,20 +160,20 @@ struct FVec3_8 {
         x{v}, y{v}, z{v}
     {}
 
-    FVec3_8(PackedFVec3 v0, PackedFVec3 v1, PackedFVec3 v2, PackedFVec3 v3,
-            PackedFVec3 v4, PackedFVec3 v5, PackedFVec3 v6, PackedFVec3 v7) :
+    FVec3_8(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3,
+            glm::vec3 v4, glm::vec3 v5, glm::vec3 v6, glm::vec3 v7) :
         x{v0.x, v1.x, v2.x, v3.x, v4.x, v5.x, v6.x, v7.x},
         y{v0.y, v1.y, v2.y, v3.y, v4.y, v5.y, v6.y, v7.y},
         z{v0.z, v1.z, v2.z, v3.z, v4.z, v5.z, v6.z, v7.z}
     {}
 
-    void insert(unsigned index, PackedFVec3 v) {
+    void insert(unsigned index, glm::vec3 v) {
         x[index] = v.x;
         y[index] = v.y;
         z[index] = v.z;
     }
 
-    PackedFVec3 extract(unsigned index) const {
+    glm::vec3 extract(unsigned index) const {
         return {
             x[index],
             y[index],
@@ -299,7 +252,7 @@ inline FVec3_8 operator-(float a, FVec3_8 b) {
     };
 }
 
-inline FVec3_8 operator-(PackedFVec3 a, FVec3_8 b) {
+inline FVec3_8 operator-(glm::vec3 a, FVec3_8 b) {
     return {
         a.x - b.x,
         a.y - b.y,
@@ -357,7 +310,7 @@ inline FVec3_8 operator*(FVec3_8 a, FVec8 b) {
     };
 }
 
-inline FVec3_8 operator*(FVec3_8 a, PackedFVec3 b) {
+inline FVec3_8 operator*(FVec3_8 a, glm::vec3 b) {
     return {
         a.x * b.x,
         a.y * b.y,
@@ -389,6 +342,29 @@ inline FVec8 operator/(float a, FVec8 b) {
 
 inline U32Vec8 operator&(U32Vec8 a, U32Vec8 b) {
     return U32Vec8{_mm256_and_si256(a.data, b.data)};
+}
+
+
+inline FastFVec3& operator+=(FastFVec3& lhs, FastFVec3 rhs) {
+    lhs = lhs + rhs;
+    return lhs;
+}
+
+
+inline FastFVec3& operator*=(FastFVec3& lhs, FastFVec3 rhs) {
+    lhs = lhs * rhs;
+    return lhs;
+}
+
+inline FVec8& operator*=(FVec8& lhs, FVec8 rhs) {
+    lhs = lhs * rhs;
+    return lhs;
+}
+
+
+inline FastFVec3& operator/=(FastFVec3& lhs, float rhs) {
+    lhs = lhs / rhs;
+    return lhs;
 }
 
 
@@ -479,7 +455,7 @@ inline FVec3_8 conditional(U32Vec8 cond, FVec3_8 trueVal, FVec3_8 falseVal) {
 }
 
 
-inline FVec8 dot(FVec3_8 a, PackedFVec3 b) {
+inline FVec8 dot(FVec3_8 a, glm::vec3 b) {
     return fma(a.z, FVec8{b.z}, fma(a.y, FVec8{b.y}, a.x * b.x));
 }
 
@@ -488,7 +464,7 @@ inline FVec8 dot(FVec3_8 a, FVec3_8 b) {
 }
 
 
-inline FVec3_8 cross(FVec3_8 a, PackedFVec3 b) {
+inline FVec3_8 cross(FVec3_8 a, glm::vec3 b) {
     return {
         fms(a.y, FVec8{b.z}, a.z * b.y),
         fms(a.z, FVec8{b.x}, a.x * b.z),

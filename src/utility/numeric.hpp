@@ -19,6 +19,7 @@ struct IndexRange {
 };
 
 
+// Casts between integer types safely.
 template<typename To, typename From>
 To intCast(From val) {
     static_assert(std::is_integral_v<From> && std::is_integral_v<To>);

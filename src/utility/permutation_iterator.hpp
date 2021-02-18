@@ -5,6 +5,7 @@
 #include <type_traits>
 
 
+// Permutes the elements of an array using another array as indices.
 template<typename T, typename IndexType>
 class PermutationIterator {
 public:
@@ -63,6 +64,7 @@ private:
     T* _elementIterator;
     IndexType const* _indexIterator;
 };
+
 
 template<typename T, typename IndexType>
 bool operator==(PermutationIterator<T, IndexType> const& lhs, PermutationIterator<T, IndexType> const& rhs) {

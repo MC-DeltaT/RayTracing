@@ -10,6 +10,8 @@ Overview:
 	Monte Carlo integration is done via importance sampling, according to the GGX distribution.
 	Light transmission, i.e. surface transparency, is not currently supported.
 
+	Ray-mesh intersection is accelerated via binary space partitioning.
+
 	Capable of rendering arbitrary polygon meshes.
 
 	The renderer is CPU-optimised, with no GPU acceleration support.

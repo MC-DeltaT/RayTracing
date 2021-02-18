@@ -19,19 +19,21 @@
 #include <glm/vec3.hpp>
 
 
+// Represents an intersection of a line and mesh.
 struct LineMeshIntersection {
     float t;                    // Line equation parameter.
     float pointCoord2;          // Barycentric coordinate relative to vertex 2.
     float pointCoord3;          // Barycentric coordinate relative to vertex 3.
     glm::vec3 point;            // Intersection point.
-    MeshTriIndex meshTriIndex;  // Index of intersected tri.
+    MeshTriIndex meshTriIndex;  // Index of intersected mesh + tri.
 };
 
 
+// Binary space partitioning structure for line-mesh intersections.
 class BSPTree {
 public:
     BSPTree(Span<glm::vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
-            Span<MeshTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
+            Span<IndexedTri const> tris, PermutedSpan<TriRange const, MeshIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box) :
         _root{}, _inodes{}, _leaves{}
@@ -170,7 +172,7 @@ private:
     std::vector<Leaf> _leaves;
 
     static Node _createNode(Span<glm::vec3 const> vertexPositions, Span<VertexRange const> vertexRanges,
-            Span<MeshTri const> tris, PermutedSpan<TriRange const, MaterialIndex> triRanges,
+            Span<IndexedTri const> tris, PermutedSpan<TriRange const, MaterialIndex> triRanges,
             Span<PreprocessedTri const> preprocessedTris, Span<TriRange const> preprocessedTriRanges,
             BoundingBox const& box, std::vector<INode>& inodes, std::vector<Leaf>& leaves,
             std::uint8_t divisionAxis = 0) {
@@ -273,7 +275,7 @@ private:
         }
         std::uint8_t const nextDivisionAxis = (divisionAxis + 1) % 3;
         auto const index = inodes.size();
-        // Insert inode before recursing so they're in traversal order.
+        // Insert inode before recursing so they're in traversal order (hopefully better for cache).
         inodes.push_back({{}, {}, divisionAxis});
         inodes[index].negativeChild = _createNode(vertexPositions, vertexRanges, tris, triRanges, preprocessedTris,
             preprocessedTriRanges, negativeSubbox, inodes, leaves, nextDivisionAxis);

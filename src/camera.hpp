@@ -29,6 +29,7 @@ struct Camera {
 };
 
 
+// Calculates a matrix which transforms a pixel vector <x, y, 1> to a corresponding ray direction from the camera.
 inline glm::mat3 pixelToRayTransform(glm::vec3 forward, glm::vec3 down, glm::vec3 right, float fov, unsigned imageWidth,
         unsigned imageHeight) {
     assert(isUnitVector(forward));

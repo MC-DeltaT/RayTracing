@@ -8,6 +8,7 @@
 #include <xmmintrin.h>
 
 
+// Array of 4 floats with vectorised operations.
 struct FVec4 {
     __m128 data;
 
@@ -41,6 +42,7 @@ struct FVec4 {
 };
 
 
+// Array of 3 floats, represented as an array of 4 floats for vectorisation capability.
 struct FastFVec3 {
     FVec4 data;
 
@@ -78,6 +80,7 @@ struct FastFVec3 {
 };
 
 
+// Array of 8 floats with vectorised operations.
 struct FVec8 {
     __m256 data;
 
@@ -111,6 +114,7 @@ struct FVec8 {
 };
 
 
+// Array of 8 32-bit unsigned integers with vectorisated operations.
 struct U32Vec8 {
     __m256i data;
 
@@ -145,6 +149,7 @@ struct U32Vec8 {
 };
 
 
+// Array of 8 3D vectors of floats with vectorised operations.
 struct FVec3_8 {
     FVec8 x;
     FVec8 y;
@@ -384,6 +389,7 @@ inline U32Vec8 operator>=(FVec8 a, float b) {
 
 
 inline FVec8 abs(FVec8 v) {
+    // No AVX2 abs function, have to manually clear sign bit.
     auto const mask = _mm256_castsi256_ps(_mm256_set_epi32(
         0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF,
         0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF));
@@ -442,10 +448,12 @@ inline FVec8 fms(FVec8 a, FVec8 b, FVec8 c) {
 }
 
 
+// Elementwise choice between trueVal and falseVal depending on cond.
 inline FVec8 conditional(U32Vec8 cond, FVec8 trueVal, FVec8 falseVal) {
     return FVec8{_mm256_blendv_ps(falseVal.data, trueVal.data, _mm256_castsi256_ps(cond.data))};
 }
 
+// Elementwise choice between trueVal and falseVal depending on cond.
 inline FVec3_8 conditional(U32Vec8 cond, FVec3_8 trueVal, FVec3_8 falseVal) {
     return {
         conditional(cond, trueVal.x, falseVal.x),

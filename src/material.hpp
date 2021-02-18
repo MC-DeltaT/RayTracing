@@ -9,6 +9,8 @@
 #include <glm/vec3.hpp>
 
 
+// Describes the appearance of a mesh.
+// Currently only a solid colour is supported.
 struct Material {
     glm::vec3 colour;
     float roughness;        // In range (0, 1].
@@ -17,6 +19,7 @@ struct Material {
 };
 
 
+// Precalculated material data, for efficiency.
 struct PreprocessedMaterial {
     float ndfAlphaSq;
     float geometryAlphaSq;

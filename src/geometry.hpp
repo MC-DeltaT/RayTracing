@@ -40,7 +40,7 @@ struct Tri {
 };
 
 
-// Tri preprocessed for line intersection calculation.
+// Tri preprocessed for line intersection calculation, for efficiency.
 struct PreprocessedTri {
     glm::vec3 normal;
     glm::vec3 v1;
@@ -49,6 +49,7 @@ struct PreprocessedTri {
 };
 
 
+// Block of 8 preprocessed mesh tris, for vectorisation.
 struct PreprocessedTriBlock {
     FVec3_8 normal;
     FVec3_8 v1;
@@ -57,12 +58,14 @@ struct PreprocessedTriBlock {
 };
 
 
+// Consideration of surfaces for line-mesh intersections.
 enum class SurfaceConsideration {
     ALL,
-    FRONT_ONLY
+    FRONT_ONLY      // Ignore intersections where the line hits the back of the tri.
 };
 
 
+// Data for 8 line-tri intersections, for vectorisation.
 struct LineTrisIntersection {
     U32Vec8 exists;         // Indicates if specific intersection occurred.
     FVec8 t;                // Line equation parameter.

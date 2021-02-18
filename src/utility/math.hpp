@@ -14,6 +14,7 @@ constexpr T square(T val) {
 }
 
 
+// Raises a number to an integer power.
 template<typename T>
 constexpr T iPow(T val, unsigned power) {
     T result{1};

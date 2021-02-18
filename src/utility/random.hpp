@@ -6,6 +6,7 @@
 #include <glm/gtc/constants.hpp>
 
 
+// Probably doesn't pass any randomness tests, but is super fast.
 class FastRNG {
 public:
     FastRNG(std::uint64_t state) :

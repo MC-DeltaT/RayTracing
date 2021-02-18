@@ -8,6 +8,7 @@
 #include <type_traits>
 
 
+// Permutes the elements of a span using another span as indices.
 template<typename T, typename IndexType = std::size_t>
 class PermutedSpan {
 public:

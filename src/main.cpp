@@ -22,8 +22,8 @@
 #include <glm/vec3.hpp>
 
 
-static std::vector<MeshTri> quadMeshTris(unsigned quadCount) {
-    std::vector<MeshTri> tris;
+static std::vector<IndexedTri> quadMeshTris(unsigned quadCount) {
+    std::vector<IndexedTri> tris;
     for (unsigned i = 0; i < quadCount; ++i) {
         auto const fourI = 4 * i;
         auto const v1 = intCast<VertexIndex>(fourI);
@@ -37,7 +37,7 @@ static std::vector<MeshTri> quadMeshTris(unsigned quadCount) {
 }
 
 
-std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> plane() {
+std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<IndexedTri>> plane() {
     return {
         {
             {-0.5f, 0.0f, -0.5f},   // Rear left
@@ -56,7 +56,7 @@ std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>>
 }
 
 
-std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<MeshTri>> cube() {
+std::tuple<std::vector<glm::vec3>, std::vector<glm::vec3>, std::vector<IndexedTri>> cube() {
     return {
         {
             // Front
@@ -129,6 +129,8 @@ int main() {
     std::vector<glm::vec3> filteredBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
     std::vector<glm::u8vec3> imageBuffer{IMAGE_HEIGHT * IMAGE_WIDTH};
 
+    // See file example_render.png for rendered scene.
+
     Scene scene{
         {   // Camera
             {9.0f, 8.0f, 16.0f}, glm::vec3{0.3f, -2.6f, 0.0f}, glm::radians(45.0f)
@@ -192,14 +194,13 @@ int main() {
     auto const pixelToRayTransform = ::pixelToRayTransform(scene.camera.forward(), scene.camera.down(),
         scene.camera.right(), scene.camera.fov, IMAGE_WIDTH, IMAGE_HEIGHT);
 
-    instantiateMeshes(readOnlySpan(scene.meshes.vertexPositions), readOnlySpan(scene.meshes.vertexNormals),
-        readOnlySpan(scene.meshes.vertexRanges), readOnlySpan(scene.models.meshTransforms),
-        readOnlySpan(scene.models.meshes), scene.instantiatedMeshes);
+    scene.instantiatedMeshes = instantiateMeshes(readOnlySpan(scene.meshes.vertexPositions),
+        readOnlySpan(scene.meshes.vertexNormals), readOnlySpan(scene.meshes.vertexRanges),
+        readOnlySpan(scene.models.meshTransforms), readOnlySpan(scene.models.meshes));
 
-    preprocessTris(readOnlySpan(scene.instantiatedMeshes.vertexPositions),
+    scene.preprocessedTris = preprocessTris(readOnlySpan(scene.instantiatedMeshes.vertexPositions),
         readOnlySpan(scene.instantiatedMeshes.vertexRanges), readOnlySpan(scene.meshes.tris),
-        PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
-        scene.preprocessedTris, scene.preprocessedTriRanges);
+        PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)});
 
     auto meshBoundingBox = computeBoundingBox(readOnlySpan(scene.instantiatedMeshes.vertexPositions));
     // Expand bounding box slightly to account for FP error when handling surfaces right on edge of box.
@@ -210,7 +211,7 @@ int main() {
         readOnlySpan(scene.instantiatedMeshes.vertexPositions), readOnlySpan(scene.instantiatedMeshes.vertexRanges),
         readOnlySpan(scene.meshes.tris),
         PermutedSpan{readOnlySpan(scene.meshes.triRanges), readOnlySpan(scene.models.meshes)},
-        readOnlySpan(scene.preprocessedTris), readOnlySpan(scene.preprocessedTriRanges),
+        readOnlySpan(scene.preprocessedTris.tris), readOnlySpan(scene.preprocessedTris.triRanges),
         meshBoundingBox
     };
 

@@ -5,6 +5,7 @@
 #include <iterator>
 
 
+// Iterates ascending over numerical indices.
 template<typename T = std::size_t>
 class IndexIterator {
 public:

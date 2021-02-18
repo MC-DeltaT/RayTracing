@@ -8,6 +8,7 @@
 #include <type_traits>
 
 
+// std::span because C++20 isn't really implemented properly yet.
 template<typename T>
 class Span {
 public:
@@ -71,6 +72,7 @@ template<class Container>
 Span(Container& container) -> Span<std::remove_pointer_t<decltype(std::data(container))>>;
 
 
+// Creates a read-only Span viewing a container.
 template<class Container>
 Span<typename Container::value_type const> readOnlySpan(Container const& container) {
     return Span{container};

@@ -29,7 +29,7 @@ struct RayTraceData {
     BSPTree const& bspTree;
     Span<glm::vec3 const> vertexNormals;                // Vertex normals for instantiated meshes.
     Span<VertexRange const> vertexRanges;               // Maps from model index to range of vertices.
-    Span<MeshTri const> tris;                           // Tris for base meshes (not instantiated meshes).
+    Span<IndexedTri const> tris;                        // Tris for base meshes (not instantiated meshes).
     PermutedSpan<TriRange const, MeshIndex> triRanges;  // Maps from model index to range of tris.
     PermutedSpan<PreprocessedMaterial const, MeshIndex> materials;  // Maps from model index to preprocessed mesh material.
 };
@@ -44,10 +44,12 @@ struct RenderData {
 };
 
 
-constexpr inline static unsigned PIXEL_SAMPLE_RATE = 2048;
+constexpr inline static unsigned PIXEL_SAMPLE_RATE = 2048;      // Number of ray samples per pixel.
 constexpr inline static float RAY_INTERSECTION_T_MIN = 1e-3f;   // Intersections with line param < this are discarded.
+constexpr unsigned RAY_BOUNCE_LIMIT = 8;        // Depth to which rays are explored. Must be <= 8
 
 
+// Performs backwards path tracing on a scene for a single ray.
 inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEngine) {
     // Lighting model based on this paper:
     // B. Walter, S. R. Marschner, H. Li, and K. E. Torrance, "Microfacet models for refraction through rough surfaces", 2007.
@@ -81,8 +83,12 @@ inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEng
     };
 
     // TODO? allow for >8 bounces
-    constexpr unsigned RAY_BOUNCE_LIMIT = 8;        // Must be <= 8 !
+    static_assert(RAY_BOUNCE_LIMIT <= 8);
+
     constexpr auto RAY_DEPTH_LIMIT = RAY_BOUNCE_LIMIT + 1;
+
+    // We first iteratively trace the path to the endpoint (slow) while collecting material data, then calculate
+    // lighting all at once in parallel (fast).
 
     FVec8 ndfAlphaSqs{};
     FVec8 geometryAlphaSqs{};
@@ -208,6 +214,7 @@ inline FastFVec3 rayTrace(RayTraceData const& data, Line ray, FastRNG& randomEng
 
 inline void render(RenderData const& data, Span<glm::vec3> image) {
     assert(image.size() == data.imageWidth * data.imageHeight);
+    // Note: cannot use std::execution::par_unseq due to thread_local random engine access.
     std::transform(std::execution::par, IndexIterator<>{0}, IndexIterator<>{image.size()}, image.begin(),
             [&data](std::size_t index) {
         auto const pixelX = index % data.imageWidth;

@@ -39,9 +39,11 @@ inline std::pair<glm::vec3, glm::vec3> orthonormalBasis(glm::vec3 vec) {
     assert(isUnitVector(vec));
     glm::vec3 vec2{0.56863665f, -0.77215318f, 0.28360506f};     // Arbitrary unit vector.
     auto dot = glm::dot(vec, vec2);
-    // This branch will almost never be taken.
+    // This algorithm relies on vec and vec2 not being parallel, but this can definitely occur. Hence we must check if
+    // they are parallel, and, if so, try a different vec2 value.
+    // However, this is unlikely to occur in practice, so this branch will almost never be taken (good predictability).
     if (std::abs(1.0f - std::abs(dot)) < 1e-3f) {
-        // If original dot product is 0, then dot product with this vector cannot be 0.
+        // If original dot product is 1, then dot product with this vector cannot be 1.
         vec2 = {0.56863665f, 0.77215318f, 0.28360506f};
         dot = glm::dot(vec, vec2);
     }

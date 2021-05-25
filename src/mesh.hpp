@@ -22,8 +22,8 @@
 
 // MESH STORAGE:
 //   Each mesh is fundamentally an array of triangles (tris). However, vertices are often duplicated between tris, so
-//   for memory efficiency we store an array of vertices (positions and normals), and each tri contains indices of
-//   vertices.
+//   for memory efficiency we store an array of vertices (positions and normals), and each tri contains the indices of
+//   its vertices.
 //   A vertex consists of a position and, if required, a normal vector. For cache performance, we store the positions
 //   and normals as separate arrays (structure-of-arrays rather than array-of-structures).
 //   Therefore, for a single mesh we have 3 arrays: vertex positions, vertex normals, and tris.
